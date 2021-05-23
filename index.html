@@ -1,0 +1,2665 @@
+<!DOCTYPE html>
+<html lang="ja">
+
+<head>
+    <meta charset="UTF-8">
+    <meta http-equiv="X-UA-Compatible" content="IE=edge">
+    <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, minimal-ui">
+
+    <link href="https://fonts.googleapis.com/css?family=Roboto:100,300,400,500,700,900" rel="stylesheet">
+    <link href="https://fonts.googleapis.com/css?family=Material+Icons|Material+Icons+Outlined" rel="stylesheet">
+    <link href="https://cdn.jsdelivr.net/npm/@mdi/font@4.x/css/materialdesignicons.min.css" rel="stylesheet">
+    <link href="https://cdn.jsdelivr.net/npm/vuetify@2.x/dist/vuetify.min.css" rel="stylesheet">
+
+    <!-- Vue.js v2  -->
+    <script src="https://cdn.jsdelivr.net/npm/vue@2.x/dist/vue.js"></script>
+    <!-- Vuetify v2 (Vue v3対応版2021Q3リリース予定)-->
+    <script src="https://cdn.jsdelivr.net/npm/vuetify@2.x/dist/vuetify.js"></script>
+    <!-- Vuex（ステート管理） -->
+    <script src="https://unpkg.com/vuex"></script>
+    <!-- Vue Router（SPAのルーティング） -->
+    <script src="https://unpkg.com/vue-router/dist/vue-router.js"></script>
+    <!-- axios（ajax通信用） -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/axios/0.21.1/axios.js"></script>
+
+    <script>
+        // POST先URL
+        const POST_URL = "<?= app_url; ?>"
+        console.log("POST_URL: " + POST_URL)
+        const BASE_URL = (/^(https:)/.test(POST_URL)) 
+            ? POST_URL 
+            : "https://script.google.com/macros/s/AKfycbz0ifVC3rZhV2q3O0oCDDn1uR0gYS5kpkJvARVsCp24JwUPJXQda3i4z_zN8MogIkrk/exec"
+        const TEST_MODE = false
+    </script>
+
+    <script>
+        // Array.prototype拡張
+        Array.prototype.uniq = function () {
+            return [...new Set(this)]
+        };
+        Array.prototype.min = function () {
+            return Math.min.apply(null, this)
+        };
+        Array.prototype.max = function () {
+            return Math.max.apply(null, this)
+        };
+        Array.prototype.sum = function () {
+            if (this.length == 0) return 0
+            return this.reduce((accumulator, currentValue) => accumulator + currentValue)
+        };
+        Array.prototype.groupBy = function (keySelector, elementSelector, resultSelector) {
+            if (!elementSelector) {
+                elementSelector = o => o
+            }
+            if (!resultSelector) {
+                resultSelector = o => o
+            }
+            return Array.from(
+                this.reduce((accumulator, current) => {
+                    let keyVal = keySelector(current)
+                    let groupArray = accumulator.get(keyVal)
+                    if (groupArray) {
+                        groupArray.push(elementSelector(current))
+                    } else {
+                        accumulator.set(keyVal, [elementSelector(current)])
+                    }
+                    return accumulator
+                }, new Map())
+            ).map(a => resultSelector(a))
+        };
+        Array.prototype.chunk = function (size) {
+            return this.reduce(
+                (accumulator, current, i) => (i % size ? accumulator : [...accumulator, this.slice(i, i + size)]),
+                []
+            )
+        };
+        // Object.prototype拡張
+        // Object.prototype.keys = function () { return Object.keys(this) };
+        // Object.prototype.values = function () { return Object.values(this) };
+        // Date.prototype.toJSONをUTCではなく日本時間のまま文字列にするよう変更
+        Date.prototype.toJSON = function() {
+            return this.getFullYear() + "-" + ("0" + (this.getMonth() + 1)).slice(-2) + "-" + ("0" + this.getDate()).slice(-2) + "T" +
+                ("0" + this.getHours()).slice(-2) + ":" + ("0" + this.getMinutes()).slice(-2) + ":" + ("0" + this.getSeconds()).slice(-2) + "." + ("00" + this.getMilliseconds()).slice(-3)
+        }
+
+        // 共通関数
+        // 表示中のパス
+        window.currentPath = () => location.hash.match(/[\/](.*)$/)[1]
+        // ZEROパディング
+        window.zeroPad = function (num, length) {
+            return ("0".repeat(length) + num).slice(-length)
+        }
+        // 日付関連
+        // 現在日付
+        window.currentDate = function () {
+            return new Date()
+        }
+        // 月初
+        window.beginOfMonth = function (date) {
+            return new Date(date.getFullYear(), date.getMonth(), 1)
+        }
+        // 月末
+        window.endOfMonth = function (date) {
+            return new Date(date.getFullYear(), date.getMonth() + 1, 0)
+        }
+        // 前月
+        window.lastMonth = function (date, num) {
+            return new Date(date.getFullYear(), date.getMonth() - (num || 1), 1)
+        }
+        // 翌月
+        window.nextMonth = function (date, num) {
+            return new Date(date.getFullYear(), date.getMonth() + (num || 1), 1)
+        }
+        // 年月
+        window.formatYYYYMM = function (date) {
+            return (date instanceof Date) ? `${date.getFullYear()}年${date.getMonth() + 1}月` : date
+        }
+        // 年月日
+        window.formatYYYYMMDD = function (date) {
+            return (date instanceof Date) ? `${date.getFullYear()}年${date.getMonth() + 1}月${date.getDate()}日` : date
+        }
+        // 時分
+        window.formatHHMM = function (date) {
+            return (date instanceof Date) ? `${date.getHours()}:${zeroPad(date.getMinutes(), 2)}` : date
+        }
+        // 年月日時分
+        window.formatYYYYMMDDHHMM = function (date) {
+            return (date instanceof Date) ? `${formatYYYYMMDD(date)} ${formatHHMM(date)}` : date
+        }
+        // 日
+        window.formatDD = function (date) {
+            return (date instanceof Date) ? date.getDate() : date
+        }
+        // 曜日
+        window.dayOfWeek = function (date) {
+            return ["日", "月", "火", "水", "木", "金", "土"][date.getDay()]
+        }
+        // HHMMを分に
+        window.HHMMToMinute = function (date) {
+            let match = date.match(/(\d+):(\d+)/)
+            if (!match) return 0
+
+            let HH = match[1]
+            let MM = match[2]
+
+            return (HH * 60) + Number(MM)
+        }
+        // 分をHHMMに
+        window.MinuteToHHMM = function (minute) {
+            return `${Math.floor(minute / 60)}:${zeroPad((minute % 60), 2)}`
+        }
+    </script>
+
+    <script>
+        const STATUS = {
+            requested:      {key: "requested",      value: "申請",    icon: "schedule_send",   tag: ["requested", "notice"]},
+            approved:       {key: "approved",       value: "承認",    icon: "check_circle",    tag: ["approved", "notice"]},
+            rejected:       {key: "rejected",       value: "却下",    icon: "error_outline",   tag: ["approved", "notice"]},
+            modify:         {key: "modify",         value: "修正",    icon: "edit",            tag: ["request_type", "status"]},
+            home:           {key: "home",           value: "在宅",    icon: "home",            tag: ["request_type", "status"]},
+            late:           {key: "late",           value: "遅刻",    icon: "login",           tag: ["status"]},
+            early:          {key: "early",          value: "早退",    icon: "logout",          tag: ["status"]},
+            absence:        {key: "absence",        value: "欠勤",    icon: "domain_disabled", tag: ["request_type", "status"]},
+            holiday:        {key: "holiday",        value: "年休",    icon: "hotel",           tag: ["request_type", "status"]},
+            halfholiday:    {key: "halfholiday",    value: "半年",    icon: "hotel",           tag: ["request_type", "status"]},
+            compensation:   {key: "compensation",   value: "代休",    icon: "tour",            tag: ["request_type", "status"]},
+            exchange:       {key: "exchange",       value: "振替休日", icon: "tour",            tag: ["request_type", "status"]},
+            special:        {key: "special",        value: "特別休暇", icon: "tour",            tag: ["request_type", "status"]},
+            companyholiday: {key: "companyholiday", value: "休日",    icon: "tour",            tag: ["holiday", "status"]},
+            holidaywork:    {key: "holidaywork",    value: "休日出勤", icon: "work_outline",    tag: ["request_type", "status"]},
+            notice:         {key: "notice",         value: "お知らせ", icon: "notifications",   tag: ["notice"]},
+            array_all: function () { return Object.values(this).filter(v => typeof v != "function") },
+            array_request: function () { return Object.values(this).filter(v => typeof v != "function" && v.tag.some(t => t == "request_type")) },
+            array_status: function () { return Object.values(this).filter(v => typeof v != "function" && v.tag.some(t => t == "status")) },
+            array_holiday: function () { return Object.values(this).filter(v => typeof v != "function" && v.tag.some(t => t == "holiday")) },
+        }
+
+        // cookie操作
+        let setCookie = cookies => {
+            Object.keys(cookies).forEach(key => {
+                let cookie = `${key}=${cookies[key]}`
+                document.cookie = cookie
+            })
+            if (Object.keys(cookies).some(key => key == "token") && Object.keys(cookies).some(key => key == "userid")) {
+                store.dispatch('isLoggedinAsync', true)
+            }
+        }
+        let getCookie = key => {
+            let cookie = document.cookie
+                .split(";")
+                .map(c => {
+                    a = c.split("=").map(s => s.trim())
+                    return {
+                        key: a[0],
+                        val: a[1]
+                    }
+                })
+                .filter(c => c.key == key)
+                .map(c => c.val)[0]
+            return cookie
+        }
+        let removeCookie = keyList => {
+            keyList.forEach(key => {
+                let cookie = `${key}=; max-age=0`
+                document.cookie = cookie
+            })
+            if (keyList.some(key => key == "token") || keyList.some(key => key == "userid")) {
+                store.dispatch('isLoggedinAsync', false)
+            }
+        }
+
+        // 位置情報取得
+        let getLocationAsync = () => {
+            return new Promise(resolve => {
+                navigator.geolocation.getCurrentPosition(p => {
+                    let location = {
+                        y: p.coords.latitude,
+                        x: p.coords.longitude
+                    }
+                    resolve(location)
+                })
+            })
+        }
+    </script>
+
+    <title>勤怠管理</title>
+</head>
+
+<body>
+    <!-- コンポーネント：通知用（アラート） -->
+    <template id="alertbox">
+        <div>
+            <v-alert outlined text :type="alertType" :value="alertVisible">
+                {{ alertMessage }}
+            </v-alert>
+        </div>
+    </template>
+    <script>
+        Vue.component('alertbox', {
+            template: "#alertbox",
+            computed: {
+                alertVisible: () => store.state.alertVisible,
+                alertMessage: () => store.state.alertMessage,
+                alertType: () => store.state.alertType,
+            },
+        })
+    </script>
+
+    <!-- コンポーネント：通知用（スナックバー） -->
+    <template id="snackbar">
+        <div class="text-center">
+            <v-snackbar top text :color="snackbarColor" v-model="snackbarVisible" :timeout="3000">
+                {{ snackbarMessage }}
+            </v-snackbar>
+        </div>
+    </template>
+    <script>
+        Vue.component('snackbar', {
+            template: "#snackbar",
+            computed: {
+                snackbarVisible: {
+                    get() {
+                        return store.state.snackbarVisible
+                    },
+                    // timeout時に呼ばれるのでsetterが必要
+                    set(visible) {
+                        store.commit('snackbarVisible', visible)
+                    },
+                },
+                snackbarMessage() {
+                    return store.state.snackbarMessage
+                },
+                snackbarColor() {
+                    return store.state.snackbarColor
+                },
+            },
+        })
+    </script>
+
+    <!-- コンポーネント：ローディング -->
+    <template id="loading">
+        <div id="loading-view" v-if="loadingFullScreen" class="text-center">
+            <v-progress-circular indeterminate color="primary"></v-progress-circular>
+        </div>
+    </template>
+    <style>
+        #loading-view {
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            width: 100%;
+            height: 100vh;
+            z-index: 9999;
+            position: fixed;
+            background-color: rgba(0, 0, 0, 0.1);
+        }
+    </style>
+    <script>
+        Vue.component('loading', {
+            template: "#loading",
+            computed: {
+                loadingFullScreen: () => store.state.loadingFullScreen
+            },
+        })
+    </script>
+
+    <!-- コンポーネント：ダイアログ -->
+    <template id="confirm-dialog">
+        <!-- <v-row justify="center"> -->
+        <v-dialog v-model="dialogVisible" persistent max-width="330">
+            <v-card>
+                <v-card-title class="headline">
+                    {{ dialogTitle }}
+                </v-card-title>
+                <v-card-text>
+                    <v-container>
+                        <v-row>
+                            <p v-html="dialogText"></p>
+                        </v-row>
+                        <v-row v-if="y>0">
+                            <v-col align-self="center" style="text-align: center;">
+                                <iframe :src="url" frameborder="0" scrolling="no" marginheight="0" marginwidth="0"
+                                    width="200" height="200"></iframe>
+                            </v-col>
+                        </v-row>
+                    </v-container>
+                </v-card-text>
+                <v-card-actions>
+                    <v-spacer></v-spacer>
+                    <v-btn color="green darken-1" text @click="callback(false)">
+                        キャンセル
+                    </v-btn>
+                    <v-btn color="green darken-1" text @click="callback(true)">
+                        OK
+                    </v-btn>
+                </v-card-actions>
+            </v-card>
+        </v-dialog>
+        <!-- </v-row> -->
+    </template>
+    <script>
+        Vue.component('confirm-dialog', {
+            template: "#confirm-dialog",
+            data() {
+                return {}
+            },
+            computed: {
+                dialogVisible: {
+                    get() {
+                        return store.state.dialogVisible
+                    },
+                    set(visible) {
+                        store.commit('dialogVisible', visible)
+                    },
+                },
+                dialogTitle() {
+                    return store.state.dialogTitle
+                },
+                dialogText() {
+                    return store.state.dialogText
+                },
+                y() {
+                    return store.state.dialogLocationY
+                },
+                x() {
+                    return store.state.dialogLocationX
+                },
+                url() {
+                    return `http://maps.google.co.jp/maps?q=${this.y},${this.x}&output=embed&t=m&z=16&hl=ja`
+                },
+            },
+            methods: {
+                callback(status) {
+                    if (store.state.dialogCallback) {
+                        store.state.dialogCallback(status)
+                    }
+                    this.dialogVisible = false
+                },
+            },
+        })
+    </script>
+
+    <!-- コンポーネント：ログイン画面 -->
+    <template id="login-view">
+        <v-card>
+            <v-card-title>
+                <span class="headline">ログイン</span>
+            </v-card-title>
+            <v-card-text>
+                <v-container>
+                    <v-row>
+                        <v-col cols="12">
+                            <v-text-field v-model="userid" label="ユーザID" required></v-text-field>
+                        </v-col>
+                        <v-col cols="12">
+                            <v-text-field v-model="password" label="パスワード" type="password" required></v-text-field>
+                        </v-col>
+                    </v-row>
+                    <v-btn text to="/forgotPassword">
+                        パスワードを忘れた方はこちら
+                    </v-btn>
+                </v-container>
+            </v-card-text>
+            <v-card-actions>
+                <v-spacer></v-spacer>
+                <v-btn :loading="loadingIcon" :disabled="loadingIcon" color="primary" @click="login">
+                    ログイン
+                </v-btn>
+            </v-card-actions>
+        </v-card>
+    </template>
+    <script>
+        Vue.component('login-view', {
+            template: "#login-view",
+            data() {
+                return {
+                    userid: null,
+                    password: null,
+                }
+            },
+            computed: {
+                loadingIcon: () => store.state.loadingIcon
+            },
+            methods: {
+                async login() {
+                    try {
+                        let res = await kintaiApi.login(this.userid, this.password)
+
+                        setCookie({
+                            token: res.token,
+                            userid: this.userid,
+                            admin: res.admin,
+                        })
+                        store.commit('snackbar', {
+                            message: 'ログインしました。',
+                            color: "success"
+                        })
+
+                        router.push({ name: 'stamp' })
+                    } catch (error) {
+                        console.log(error)
+                        console.log(error.stack)
+                        removeCookie(["token", "userid", "admin"])
+                        store.commit('alertbox', {
+                            message: 'ユーザIDまたはパスワードが違います。',
+                            type: "error"
+                        })
+                    }
+                },
+            },
+        })
+    </script>
+
+    <!-- コンポーネント：パスワードを忘れた -->
+    <template id="forgot-password-view">
+        <v-card>
+            <v-card-title>
+                <span class="headline">パスワード再設定</span>
+            </v-card-title>
+            <v-card-text>
+                <v-container>
+                    <v-row>
+                        <v-col cols="12">
+                            <div class="text--primary">
+                                入力したユーザIDのメールアドレスにパスワード再設定用メールを送信します。
+                            </div>
+                        </v-col>
+                        <v-col cols="12">
+                            <v-text-field v-model="userid" label="ユーザID" required></v-text-field>
+                        </v-col>
+                    </v-row>
+                </v-container>
+            </v-card-text>
+            <v-card-actions>
+                <v-spacer></v-spacer>
+                <v-btn :loading="loadingIcon" :disabled="loadingIcon" color="primary" @click="sendmail">
+                    メール送信
+                </v-btn>
+            </v-card-actions>
+        </v-card>
+    </template>
+    <script>
+        Vue.component('forgot-password-view', {
+            template: "#forgot-password-view",
+            data() {
+                return {
+                    userid: null,
+                    password: null,
+                }
+            },
+            computed: {
+                loadingIcon: () => store.state.loadingIcon
+            },
+            methods: {
+                async sendmail() {
+                    try {
+                        let res = await kintaiApi.forgotPassword(this.userid, this.password)
+
+                        store.commit('alertbox', {
+                            message: 'メールを送信しましたのでメールに記載のURLからパスワードを再設定してください。',
+                            type: "success"
+                        })
+                    } catch (error) {
+                        console.log(error)
+                        console.log(error.stack)
+                        store.commit('alertbox', {
+                            message: error.message,
+                            type: "error"
+                        })
+                    }
+                },
+            },
+        })
+    </script>
+
+    <!-- コンポーネント：パスワード再設定画面 -->
+    <template id="change-password-view">
+        <v-card>
+            <v-card-title>
+                <span class="headline">パスワード再設定</span>
+            </v-card-title>
+            <v-card-text>
+                <v-container>
+                    <v-row>
+                        <v-col cols="12">
+                            <v-text-field v-model="userid" label="ユーザID" required></v-text-field>
+                        </v-col>
+                        <v-col cols="12">
+                            <v-text-field v-model="password" label="パスワード" type="password" required
+                                :rules="passwordRules"></v-text-field>
+                        </v-col>
+                        <v-col cols="12">
+                            <v-text-field v-model="passwordConfirm" label="パスワード（確認）" type="password" required
+                                :rules="passwordConfirmRules"></v-text-field>
+                        </v-col>
+                    </v-row>
+                </v-container>
+            </v-card-text>
+            <v-card-actions>
+                <v-spacer></v-spacer>
+                <v-btn :loading="loadingIcon" :disabled="loadingIcon" color="primary" @click="changePassword">
+                    再設定
+                </v-btn>
+            </v-card-actions>
+        </v-card>
+    </template>
+    <script>
+        Vue.component('change-password-view', {
+            template: "#change-password-view",
+            data() {
+                return {
+                    userid: null,
+                    password: null,
+                    passwordConfirm: null,
+                    passwordRules: [
+                        v => (v || "").length >= 8 || '8文字以上で入力してください。',
+                    ],
+                    passwordConfirmRules: [
+                        v => v == this.password || 'パスワードが異なります。'
+                    ],
+                }
+            },
+            computed: {
+                loadingIcon: () => store.state.loadingIcon
+            },
+            methods: {
+                async changePassword() {
+                    // tokenはクエリパラメータから取得
+                    let token = location.search.match(/[?&]token=(.*)/)[1]
+
+                    try {
+                        let res = await kintaiApi.changePassword(this.userid, this.password, token)
+
+                        setCookie({
+                            token: res.token,
+                            userid: this.userid,
+                            admin: res.admin,
+                        })
+                        store.commit('snackbar', {
+                            message: 'パスワードを変更しました。',
+                            color: "success"
+                        })
+
+                        // クエリパラメータ削除
+                        history.replaceState(null, null, location.href.replace(location.search, ""))
+                        router.push({ name: 'stamp' })
+                    } catch (error) {
+                        console.log(error)
+                        console.log(error.stack)
+                        removeCookie(["token", "userid", "admin"])
+                        store.commit('alertbox', {
+                            message: error.message,
+                            type: "error"
+                        })
+                    }
+                },
+            },
+        })
+    </script>
+
+    <!-- コンポーネント：打刻画面 -->
+    <template id="stamp-view">
+        <v-card>
+            <v-card-title>
+                <span class="headline">打刻</span>
+            </v-card-title>
+            <v-card-text>
+                <v-container>
+                    <v-row>
+                        <v-col cols="12" class="py-2">
+                            <p>出勤または退勤を選択してください</p>
+                            <v-btn-toggle v-model="stampType" tile color="blue accent-3" group>
+                                <v-btn x-large value="stamp_start">
+                                    出勤
+                                </v-btn>
+                                <v-btn x-large value="stamp_end">
+                                    退勤
+                                </v-btn>
+                            </v-btn-toggle>
+                        </v-col>
+
+                        <v-col cols="12">
+                            <v-switch v-model="useGps" label="位置情報を付加する"></v-switch>
+                        </v-col>
+                    </v-row>
+                </v-container>
+            </v-card-text>
+            <v-card-actions>
+                <v-spacer></v-spacer>
+                <v-btn :loading="loadingIcon" :disabled="loadingIcon" color="primary" @click="stamp">
+                    打刻する
+                </v-btn>
+            </v-card-actions>
+        </v-card>
+    </template>
+    <script>
+        Vue.component('stamp-view', {
+            template: "#stamp-view",
+            data() {
+                return {
+                    useGps: true,
+                    stampType: null,
+                }
+            },
+            created() {
+                this.stampType = ((new Date()).getHours() >= 7) ? "stamp_start" : "stamp_end"
+            },
+            computed: {
+                loadingIcon: () => store.state.loadingIcon
+            },
+            methods: {
+                async stamp() {
+                    let cmd = this.stampType
+                    let userid = getCookie("userid")
+                    let token = getCookie("token")
+
+                    let location
+                    if (this.useGps) {
+                        // 位置情報取得
+                        location = await getLocationAsync()
+                    } else {
+                        location = {}
+                    }
+
+                    // 確認ダイアログ
+                    let dialogResult = await store.dispatch('dialogAsync', {
+                        title: '確認',
+                        text: "打刻してよろしいですか？",
+                        location: location,
+                    })
+
+                    if (dialogResult) {
+                        try {
+                            let res = await kintaiApi.stamp(cmd, userid, token, location)
+                            let time
+                            let address
+                            if (cmd == "stamp_start") {
+                                time = res.work_record.start_time
+                                address = (!location.y) ? '' : res.work_record.start_location.address
+                            } else {
+                                time = res.work_record.end_time
+                                address = (!location.y) ? '' : res.work_record.end_location.address
+                            }
+
+                            // 結果ダイアログ
+                            await store.dispatch('dialogAsync', {
+                                title: '打刻完了',
+                                text: `以下の内容で打刻しました。<br>${time}<br>${address}`,
+                            })
+
+                            // 申請結果を勤務表に更新する
+                            store.commit("updateWorkRecordValues", res)
+
+                            router.push({ name: 'records' })
+                        } catch (error) {
+                            console.log(error)
+                            console.log(error.stack)
+                            store.commit('alertbox', {
+                                message: error.message,
+                                type: "error"
+                            })
+                        }
+                    }
+                },
+            },
+        })
+    </script>
+
+    <!-- コンポーネント：勤務表画面 -->
+    <template id="records-view">
+        <div id="records-table">
+            <v-data-table dense mobile-breakpoint="300" fixed-header hide-default-footer :items-per-page="-1" :headers="headers" :items="targetRecords" class="elevation-1">
+                <template v-slot:top>
+                    <v-toolbar flat>
+                        <v-toolbar-title>{{ tableTitle }}</v-toolbar-title>
+                        <v-divider class="mx-4" inset vertical></v-divider>
+                        <v-spacer></v-spacer>
+                        <!-- 前月 -->
+                        <v-icon class="mr-3" @click="back">
+                            arrow_back_ios
+                        </v-icon>
+                        <!-- 次月 -->
+                        <v-icon @click="next">
+                            arrow_forward_ios
+                        </v-icon>
+                        <!-- 詳細・申請ダイアログ -->
+                        <v-dialog persistent class="ma-5" v-model="dialog" max-width="500px">
+                            <v-card>
+                                <v-card-title>
+                                    <span class="headline">{{ dialogTitle }}</span>
+                                </v-card-title>
+
+                                <v-card-text class="px-3 py-0">
+                                    <v-card color="#E5F2FF">
+                                        <v-card-title class="text-subtitle-1">
+                                            申請の種類を選択してください。
+                                        </v-card-title>
+            
+                                        <v-card-text class="pa-0">
+                                            <v-container class="pa-2">
+                                                <v-row>
+                                                    <v-col cols="12" class="pt-0 pb-5">
+                                                        <v-btn-toggle  class="flex-wrap" v-model="requestItem.request_type" tile color="blue accent-3" group>
+                                                            <v-btn dense class="my-0 mx-2 pa-0 text-caption" v-for="status in STATUS.array_request()" :key="status.key" :value="status.key">{{status.value}}</v-btn>
+                                                        </v-btn-toggle>
+                                                    </v-col>
+                                                </v-row>
+                                                <v-row>
+                                                    <v-col cols="6" class="pl-5 py-0">
+                                                        <v-text-field type="time" v-model="requestItem.start_time_mod" label="出勤" :disabled="requestItem.request_type != STATUS.modify.key"></v-text-field>
+                                                    </v-col>
+                                                    <v-col cols="6" class="pl-5 py-0">
+                                                        <v-text-field type="time" v-model="requestItem.end_time_mod" label="退勤" :disabled="requestItem.request_type != STATUS.modify.key"></v-text-field>
+                                                    </v-col>
+                                                    <v-col cols="12" class="pl-5 py-0">
+                                                        <v-text-field type="text" v-model="requestItem.note" label="備考"></v-text-field>
+                                                    </v-col>
+                                                </v-row>
+                                            </v-container>
+                                        </v-card-text>
+
+                                        <v-card-actions>
+                                            <v-spacer></v-spacer>
+                                            <v-btn :loading="loadingIcon" :disabled="loadingIcon" color="primary" @click="request">
+                                                申請
+                                            </v-btn>
+                                        </v-card-actions>
+                                    </v-card>
+
+                                    <v-container>
+                                        <v-row class="justify-center mt-5 mb-0">
+                                            <notice-detail :content_type="'record'" :target_date="requestItem.date"></notice-detail>
+                                        </v-row>
+                    
+                                        <v-row class="mt-5 mb-0">
+                                            <v-col>
+                                                <v-chip-group column class="mt-0 mb-5">
+                                                    <v-chip v-for="(status, i) in requestItem.status" :key="i" outlined><v-icon small class="mr-2">{{STATUS[status].icon}}</v-icon>{{ STATUS[status].value }}</v-chip>
+                                                </v-chip-group>
+                                            </v-col>
+                                        </v-row>
+
+                                        <v-row class="justify-center pt-0">
+                                            <v-col cols="3" class="py-0">
+                                                <v-text-field readonly type="time" v-model="requestItem.start_time" label="出勤"></v-text-field>
+                                            </v-col>
+                                            <v-col cols="3" class="py-0">
+                                                <v-text-field readonly type="time" v-model="requestItem.start_time_adjust" label="出勤(調整)"></v-text-field>
+                                            </v-col>
+                                            <v-col cols="6" class="py-0">
+                                                <p v-if="startLocationUrl">{{ requestItem.start_location.address }}</p>
+                                                <p v-else>位置情報はありません。</p>
+                                            </v-col>
+                                        </v-row>
+                                        <v-row class="justify-center pt-0">
+                                            <v-col cols="3" class="py-0">
+                                                <v-text-field readonly type="time" v-model="requestItem.end_time" label="退勤"></v-text-field>
+                                            </v-col>
+                                            <v-col cols="3" class="py-0">
+                                                <v-text-field readonly type="time" v-model="requestItem.end_time_adjust" label="退勤(調整)"></v-text-field>
+                                            </v-col>
+                                            <v-col cols="6" class="py-0">
+                                                <p v-if="endLocationUrl">{{ requestItem.end_location.address }}</p>
+                                                <p v-else>位置情報はありません。</p>
+                                            </v-col>
+                                        </v-row>
+                                        <v-row class="pt-0">
+                                            <v-col cols="3" class="py-0">
+                                                <v-text-field readonly type="time" v-model="requestItem.break_time" label="休憩"></v-text-field>
+                                            </v-col>
+                                            <v-col cols="3" class="py-0">
+                                                <v-text-field readonly type="time" v-model="requestItem.active_time" label="実働"></v-text-field>
+                                            </v-col>
+                                        </v-row>
+                                    </v-container>
+                                </v-card-text>
+
+                                <v-card-actions>
+                                    <v-spacer></v-spacer>
+                                    <v-btn @click="close">
+                                        閉じる
+                                    </v-btn>
+                                </v-card-actions>
+                            </v-card>
+                        </v-dialog>
+                    </v-toolbar>
+                </template>
+                <template v-slot:item="{ item }">
+                    <tr>
+                        <td class="pa-0">
+                            <span :class="classDateCol(item)">{{ formatDayCol(item.date) }}</span>
+                            <v-icon v-for="(status, i) in item.status" :key="i" dense>{{STATUS[status].icon}}</v-icon>
+                        </td>
+                        <td class="pa-0">
+                            {{ formatTimeCol(item.start_time) }}
+                            <v-icon v-if="!!item.start_location.y" small class="mr-2">location_on</v-icon>
+                            </td>
+                        <td class="pa-0">
+                            {{ formatTimeCol(item.end_time) }}
+                            <v-icon v-if="!!item.end_location.y" small class="mr-2">location_on</v-icon>
+                            </td>
+                        <td class="pa-0">
+                            {{ formatTimeCol(item.active_time) }}
+                        </td>
+                        <td class="pa-0">
+                            <v-icon dense color="blue" class="mr-2" @click="detail(item)">
+                                edit_calendar
+                            </v-icon>
+                        </td>
+                    </tr>
+                </template>
+                <template v-slot:no-data v-if="loading">
+                    <v-progress-circular :size="20" :width="1" indeterminate></v-progress-circular>
+                </template>
+                <template v-slot:footer>
+                    <v-container>
+                        <v-row>
+                            <v-col>
+                                <span class="text-caption mr-2">稼働日:{{activeDays}}</span>
+                                <span class="text-caption mr-2">稼働時間:{{activeTime}}</span>
+                            </v-col>
+                        </v-row>
+                    </v-container>
+                </template>
+            </v-data-table>
+        </div>
+    </template>
+    <style>
+        #records-table .v-data-table__wrapper { height: calc(100vh - 235px); }
+    </style>
+    <script>
+        Vue.component('records-view', {
+            template: "#records-view",
+            data: () => ({
+                loading: false,
+                dialog: false,
+                targetMonth: null,
+                headers: [{
+                        text: '日付',
+                        align: 'start',
+                        value: 'date',
+                        sortable: false,
+                        class: "pa-0",
+                    },
+                    {
+                        text: '出勤',
+                        value: 'start_time',
+                        sortable: false,
+                        class: "pa-0",
+                    },
+                    {
+                        text: '退勤',
+                        value: 'end_time',
+                        sortable: false,
+                        class: "pa-0",
+                    },
+                    {
+                        text: '実働',
+                        value: 'active_time',
+                        sortable: false,
+                        class: "pa-0",
+                    },
+                    {
+                        text: '',
+                        value: 'actions',
+                        sortable: false,
+                        class: "pa-0",
+                    },
+                ],
+                requestType: null,
+                requestItem: {
+                    request_type: null,
+                    date: null,
+                    status: [],
+                    start_time: null,
+                    start_location: {},
+                    end_time: null,
+                    end_location: {},
+                    start_time_adjust: null,
+                    end_time_adjust: null,
+                    start_time_mod: null,
+                    end_time_mod: null,
+                    break_time: null,
+                    active_time: null,
+                    note: null,
+                },
+            }),
+
+            created() {
+                this.initialize()
+            },
+
+            computed: {
+                loadingIcon: () => store.state.loadingIcon,
+                tableTitle() {
+                    return formatYYYYMM(this.targetMonth)
+                },
+                dialogTitle() {
+                    return formatYYYYMMDD(this.requestItem.date)
+                },
+                workRecords() {
+                    return store.state.workRecords
+                },
+                workRecordsFrom() {
+                    return store.state.workRecordsFrom
+                },
+                targetRecords() {
+                    let from = beginOfMonth(this.targetMonth)
+                    let to = endOfMonth(this.targetMonth)
+                    return this.workRecords.filter(r => {
+                        return r.date >= from && r.date <= to
+                    })
+                },
+                activeDays() {
+                    return this.targetRecords.length
+                },
+                activeTime() {
+                    let minute = this.targetRecords
+                        .map(r => {
+                            let active = HHMMToMinute(r.active_time)
+                            let holiday = r.status.includes(STATUS.holiday.key)
+                                ? (7.75 * 60)
+                                : r.status.includes(STATUS.halfholiday.key) ? (7.75 * 60 / 2) : 0
+                            return active + holiday
+                        })
+                        .sum()
+                    return MinuteToHHMM(minute)
+                },
+                classDateCol() {
+                    return (item) => {
+                        let isWeekend = [0,6].includes(item.date.getDay())
+                        let isHoliday = STATUS.array_holiday().some(h => item.status.some(s => s == h.key))
+                        return (isWeekend || isHoliday)
+                            ? "text-caption pink--text"
+                            : "text-caption"
+                    }
+                },
+                formatDayCol() {
+                    return (date) => `${formatDD(date)} (${dayOfWeek(date)})`
+                },
+
+                formatTimeCol() {
+                    return (time) => formatHHMM(time)
+                },
+                startLocationUrl() {
+                    return this.requestItem.start_location.y
+                        ? `http://maps.google.co.jp/maps?q=${this.requestItem.start_location.y},${this.requestItem.start_location.x}&output=embed&t=m&z=16&hl=ja`
+                        : null
+                },
+                endLocationUrl() {
+                    return this.requestItem.end_location.y
+                        ? `http://maps.google.co.jp/maps?q=${this.requestItem.end_location.y},${this.requestItem.end_location.x}&output=embed&t=m&z=16&hl=ja`
+                        : null
+                },
+            },
+
+            watch: {
+                dialog(val) {
+                    val || this.close()
+                },
+            },
+
+            methods: {
+                // 初期化
+                async initialize() {
+                    // 今月分データを取得
+                    this.targetMonth = currentDate()
+                    await this.fetchData(this.targetMonth)
+                },
+
+                // 前月へ
+                async back() {
+                    this.targetMonth = lastMonth(this.targetMonth)
+                    await this.fetchData(this.targetMonth)
+                },
+
+                // 翌月へ
+                async next() {
+                    let next = nextMonth(this.targetMonth)
+                    if (next <= currentDate()) {
+                        this.targetMonth = next
+                    }
+                },
+
+                // 勤務表データ取得
+                async fetchData(targetMonth) {
+                    this.loading = true
+                    await store.dispatch('getWorkRecordAsync', {targetMonth: targetMonth})
+                    this.loading = false
+                },
+
+                detail(item) {
+                    // this.requestItem = Object.assign({}, item)
+                    Object.assign(this.requestItem, item)
+                    this.requestItem.request_type = this.STATUS.modify.key
+                    this.requestItem.start_time_mod = item.start_time
+                    this.requestItem.end_time_mod = item.end_time
+                    this.requestItem.note = ""
+                    this.dialog = true
+                },
+
+                close() {
+                    this.dialog = false
+                },
+
+                // 申請
+                async request() {
+                    let userid = getCookie("userid")
+                    let token = getCookie("token")
+
+                    // 確認ダイアログ
+                    let dialogResult = await store.dispatch('dialogAsync', {
+                        title: '確認',
+                        text: "申請してよろしいですか？",
+                    })
+
+                    if (dialogResult) {
+                        // 申請データ
+                        let request = {
+                            target_date: this.requestItem.date,
+                            request_type: this.requestItem.request_type,
+                            note: this.requestItem.note,
+                        }
+                        if (this.requestItem.request_type == this.STATUS.modify.key) {
+                            request.start_time = this.requestItem.start_time_mod
+                            request.end_time = this.requestItem.end_time_mod
+                        }
+
+                        try {
+                            let res = await kintaiApi.request(userid, token, request)
+
+                            // 申請結果を勤務表に更新する
+                            store.commit("updateWorkRecordValues", res)
+
+                            store.commit('snackbar', {
+                                message: '申請しました',
+                                color: "success"
+                            })
+                            this.close()
+                        } catch (error) {
+                            console.log(error)
+                            console.log(error.stack)
+                            store.commit('alertbox', {
+                                message: error.message,
+                                type: "error"
+                            })
+                        }
+                    }
+                },
+            },
+        })
+    </script>
+    
+    <!-- コンポーネント：通知画面 -->
+    <template id="notice-view">
+        <v-card>
+            <v-card-title>
+                <v-row>
+                    <v-col>
+                        <span class="headline">お知らせ</span>
+                    </v-col>
+                    <v-spacer/>
+                    <!-- 追加ボタン -->
+                    <v-col class="text-right">
+
+                        <v-btn fab dark small color="primary" @click="addNotice" v-if="isAdmin">
+                            <v-icon dark>add</v-icon>
+                        </v-btn>
+
+                        <!-- 通知追加ダイアログ -->
+                        <v-dialog persistent　v-model="dialog" max-width="500px">
+                            <v-card>
+                                <v-card-title class="headline">
+                                    通知内容を入力してください。
+                                </v-card-title>
+
+                                <v-card-text>
+                                    <v-container>
+                                        <v-row>
+                                            <v-col cols="12" class="pl-5 py-0">
+                                                <v-text-field type="text" v-model="title" label="タイトル"></v-text-field>
+                                            </v-col>
+                                            <v-col cols="12" class="pl-5 py-0">
+                                                <v-textarea v-model="note" label="内容"></v-textarea>
+                                            </v-col>
+                                            <v-col cols="12" class="py-0">
+                                                <template>
+                                                    <v-container fluid>
+                                                        <v-select v-model="destination" :items="users" chips label="宛先" multiple outlined>
+                                                            <template v-slot:prepend-item>
+                                                                <v-list-item ripple @click="toggle">
+                                                                    <v-list-item-action>
+                                                                        <v-icon :color="destination.length > 0 ? 'indigo darken-4' : ''">
+                                                                            {{ icon }}
+                                                                        </v-icon>
+                                                                    </v-list-item-action>
+                                                                    <v-list-item-content>
+                                                                        <v-list-item-title>全て選択</v-list-item-title>
+                                                                    </v-list-item-content>
+                                                                </v-list-item>
+                                                                <v-divider class="mt-2"></v-divider>
+                                                            </template>
+                                                            <template v-slot:append-item>
+                                                                <v-divider class="mb-2"></v-divider>
+                                                                <v-list-item disabled>
+                                                                    <v-list-item-avatar color="grey lighten-3">
+                                                                        <v-icon>people</v-icon>
+                                                                    </v-list-item-avatar>
+
+                                                                    <v-list-item-content>
+                                                                        <v-list-item-title>宛先</v-list-item-title>
+                                                                        <v-list-item-subtitle>{{ destination.length }} 人</v-list-item-subtitle>
+                                                                    </v-list-item-content>
+                                                                </v-list-item>
+                                                            </template>
+                                                        </v-select>
+                                                    </v-container>
+                                                </template>
+
+                                            </v-col>
+                                        </v-row>
+                                    </v-container>
+                                </v-card-text>
+
+                                <v-card-actions>
+                                    <v-spacer></v-spacer>
+                                    <v-btn @click="close">
+                                        閉じる
+                                    </v-btn>
+                                    <v-btn :loading="loadingIcon" :disabled="loadingIcon" color="primary" @click="sendNotice">
+                                        送信
+                                    </v-btn>
+                                </v-card-actions>
+                            </v-card>
+                        </v-dialog>
+                    </v-col>
+                </v-row>
+            </v-card-title>
+            <v-card-text>
+                <v-container>
+                    <v-row class="justify-center">
+                        <notice-detail :content_type="'notice'" :target_date="null"></notice-detail>
+                    </v-row>
+                </v-container>
+            </v-card-text>
+        </v-card>
+    </template>
+    <script>
+        Vue.component('notice-view', {
+            template: "#notice-view",
+            data() {
+                return {
+                    dialog: false,
+                    title: null,
+                    note: null,
+                    destination: [],
+                }
+            },
+            created() {
+            },
+            computed: {
+                isAdmin: () => getCookie("admin") == 1,
+                users: () => store.state.users_list.map(u => u.username),
+                loadingIcon: () => store.state.loadingIcon,
+                likesAllUser () {
+                    return this.destination.length === this.users.length
+                },
+                likesSomeUser () {
+                    return this.destination.length > 0 && !this.likesAllUser
+                },
+                icon () {
+                    if (this.likesAllUser) return 'cancel'
+                    if (this.likesSomeUser) return 'do_disturb_on'
+                    return 'radio_button_unchecked'
+                },
+            },
+            watch: {
+                dialog(val) {
+                    val || this.close()
+                },
+            },
+            methods: {
+                // 通知作成
+                addNotice() {
+                    this.dialog = true
+                },
+                // 宛先の全て選択
+                toggle () {
+                    this.$nextTick(() => {
+                        if (this.likesAllUser) {
+                            this.destination = []
+                        } else {
+                            this.destination = this.users.slice()
+                        }
+                    })
+                },
+                // 閉じる
+                close() {
+                    this.dialog = false
+                },
+                // 通知送信
+                async sendNotice() {
+                    let userid = getCookie("userid")
+                    let token = getCookie("token")
+
+                    // 確認ダイアログ
+                    let dialogResult = await store.dispatch('dialogAsync', {
+                        title: '確認',
+                        text: "送信してよろしいですか？",
+                    })
+
+                    if (dialogResult) {
+                        // 申請データ
+                        let notice = {
+                            title: this.title,
+                            note: this.note,
+                            destination: Object.fromEntries(
+                                store.state.users_list
+                                    .filter(u => this.destination.some(d => d == u.username))
+                                    .map(u => {
+                                        return [u.userid, null]
+                                    })
+                            ),
+                        }
+
+                        try {
+                            let res = await kintaiApi.sendNotice(userid, token, notice)
+
+                            store.commit("addNotice", {notice: res.notice})
+
+                            this.close()
+
+                            store.commit('snackbar', {
+                                message: '送信しました',
+                                color: "success"
+                            })
+
+                        } catch (error) {
+                            console.log(error)
+                            console.log(error.stack)
+                            store.commit('alertbox', {
+                                message: error.message,
+                                type: "error"
+                            })
+                        }
+                    }
+                },
+            },
+        })
+    </script>
+    
+    <!-- コンポーネント：申請一覧画面 -->
+    <template id="requested-view">
+        <v-card>
+            <v-card-title>
+                <span class="headline">申請一覧</span>
+            </v-card-title>
+            <v-card-text>
+                <v-container>
+                    <v-row class="justify-end">
+                        <v-switch v-model="unapproved" label="承認待ちのみ表示する" color="orange"></v-switch>
+                    </v-row>
+                    <v-row class="justify-center mt-0">
+                        <notice-detail :content_type="'requested'" :target_date="null" :unapproved="unapproved"></notice-detail>
+                    </v-row>
+                </v-container>
+            </v-card-text>
+        </v-card>
+    </template>
+    <script>
+        Vue.component('requested-view', {
+            template: "#requested-view",
+            data() {
+                return {
+                    unapproved: true
+                }
+            },
+            created() {
+            },
+            computed: {
+            },
+            methods: {
+            },
+        })
+    </script>
+    
+    <!-- コンポーネント：通知の詳細 -->
+    <template id="notice-detail">
+        <v-expansion-panels multiple focusable>
+            <v-expansion-panel v-for="(item,i) in notices" :key="i">
+                <v-expansion-panel-header class="">
+                    <v-row class="align-center">
+                        <v-col cols="1" class="mx-0 px-0">
+                            <v-badge color="pink" overlap dot :value="(content_type != 'requested') ? !isConfirmedAll(item) : !isApproved(item)">
+                                <v-icon v-if="item.notice_type == STATUS.approved.key" color="green" class="mx-0 justify-start">{{STATUS.approved.icon}}</v-icon>
+                                <v-icon v-if="item.notice_type == STATUS.rejected.key" color="red" class="mx-0 justify-start">{{STATUS.rejected.icon}}</v-icon>
+                                <v-icon v-if="item.notice_type == STATUS.notice.key" color="blue" class="mx-0 justify-start">{{STATUS.notice.icon}}</v-icon>
+                                <v-icon v-if="item.notice_type == STATUS.requested.key" color="orange" class="mx-0 justify-start">{{STATUS.requested.icon}}</v-icon>
+                            </v-badge>
+                        </v-col>
+                        <v-col class="mx-0">
+                            <v-icon v-if="STATUS.array_request().some(s => s.key == item.notice_subtype)" color="gray" class="mx-0 justify-start">{{STATUS[item.notice_subtype].icon}}</v-icon>
+                            {{ item.title }}
+                        </v-col>
+                    </v-row>
+                </v-expansion-panel-header>
+                <v-expansion-panel-content>
+                    <!-- {{ item }} -->
+                    <v-container class="ma-0 pa-0" v-if="item.notice_type == STATUS.notice.key">
+                        <v-row class="ma-3" style="white-space: pre-wrap;">{{ item.note }}</v-row>
+
+                        <v-row class="ma-3">
+                            <v-chip-group column class="mt-0 mb-5">
+                                <v-chip v-for="user in ConfirmedList(item)" :key="user.userid" :color="user.isConfirmed ? 'teal' : ''" :text-color="user.isConfirmed ? 'white' : ''">
+                                    <v-icon class="mr-1 material-icons-outlined_" v-if="user.isConfirmed">check_circle</v-icon>
+                                    {{ user.username }}
+                                </v-chip>
+                            </v-chip-group>
+                        </v-row>
+                    </v-container>
+                    <v-row class="my-3" v-if="[STATUS.approved.key, STATUS.rejected.key, STATUS.requested.key].includes(item.notice_type)">
+                        <v-list subheader three-line>
+                            <v-list-item>
+                                <v-list-item-content>
+                                    <v-list-item-subtitle>申請受付日時</v-list-item-subtitle>
+                                    <v-list-item-title>{{ formatDateTimeCol(item.request.receipt_date) }}</v-list-item-title>
+                                </v-list-item-content>
+                            </v-list-item>
+                            <v-list-item v-if="item.request.start_time">
+                                <v-list-item-content>
+                                    <v-list-item-subtitle>出勤時間</v-list-item-subtitle>
+                                    <v-list-item-title>{{ item.request.start_time }}</v-list-item-title>
+                                </v-list-item-content>
+                            </v-list-item>
+                            <v-list-item v-if="item.request.end_time">
+                                <v-list-item-content>
+                                    <v-list-item-subtitle>退勤時間</v-list-item-subtitle>
+                                    <v-list-item-title>{{ item.request.end_time }}</v-list-item-title>
+                                </v-list-item-content>
+                            </v-list-item>
+                            <v-list-item>
+                                <v-list-item-content>
+                                    <v-list-item-subtitle>備考</v-list-item-subtitle>
+                                    <v-list-item-title>{{ item.note }}</v-list-item-title>
+                                </v-list-item-content>
+                            </v-list-item>
+                        </v-list>
+                    </v-row>
+                    <v-row class="justify-end mb-2" v-if="[STATUS.notice.key, STATUS.approved.key, STATUS.rejected.key].includes(item.notice_type) && content_type != 'requested' && isMyNotification(item)">
+                        <v-btn :loading="loadingIcon" :disabled="loadingIcon || isConfirmed(item)" color="primary" @click="confirmNotice(item)">
+                            確認しました
+                        </v-btn>
+                    </v-row>
+                    <v-row class="justify-end mb-2" v-if="item.notice_type == STATUS.requested.key && content_type == 'requested'">
+                        <v-btn class="mr-5" :loading="loadingIcon" :disabled="loadingIcon || isConfirmed(item)" color="primary" @click="confirmNotice(item, true)">
+                            承認
+                        </v-btn>
+                        <v-btn :loading="loadingIcon" :disabled="loadingIcon || isConfirmed(item)" color="warning" @click="confirmNotice(item, false)">
+                            却下
+                        </v-btn>
+                    </v-row>
+                </v-expansion-panel-content>
+            </v-expansion-panel>
+        </v-expansion-panels>
+    </template>
+    <script>
+        Vue.component('notice-detail', {
+            template: "#notice-detail",
+            data() {
+                return {
+                }
+            },
+            props: {
+                'content_type': {
+                    type: String,
+                    default: null
+                },
+                'target_date': {
+                    type: Date,
+                    default: null
+                },
+                'unapproved': {
+                    type: Boolean,
+                    default: true
+                },
+            },
+            created() {
+                this.initialize()
+            },
+            computed: {
+                // API通信中
+                loadingIcon: () => store.state.loadingIcon,
+                // 表示用通知データ
+                notices() {
+                    switch (this.content_type) {
+                        // 通知画面用
+                        case "notice":
+                            return store.getters.noticesOfAll
+
+                        // 勤務表詳細画面用
+                        case "record":
+                            return store.getters.noticesOfWorkRecord()
+                                .filter(r => r.target_date.getTime() == this.target_date.getTime())
+
+                        // 申請一覧画面用
+                        case "requested":
+                            return store.getters.noticesOfRequest(this.unapproved)
+                    
+                        default:
+                            return []
+                    }
+                },
+                // 日付表示用フォーマッタ
+                formatDateTimeCol() {
+                    return (date) => formatYYYYMMDDHHMM(date)
+                },
+                // 承認/却下済みかどうか
+                isApproved() {
+                    return (item) => !!item.request.approved_date
+                },
+                // 自分宛てかどうか
+                isMyNotification() {
+                    // 管理者通知以外（＝自分の申請/却下）または宛先に自分が含まれる場合
+                    return (item) => item.notice_type != STATUS.notice.key || getCookie("userid") in item.notice.destination
+                },
+                // 確認済みかどうか（管理者通知が全員確認済みか）
+                isConfirmedAll() {
+                    return (item) => {
+                        if (item.notice_type != STATUS.notice.key) {
+                            return !!item.confirm_date
+                        } else {
+                            // 宛先全てに確認日が入っているか
+                            return Object.values(item.notice.destination).every(d => d)
+                        }
+                    }
+                },
+                // 確認済みかどうか
+                isConfirmed() {
+                    return (item) => !!item.confirm_date
+                },
+                // 確認結果の一覧
+                ConfirmedList() {
+                    return (item) => {
+                        return store.state.users_list
+                            .filter(u => u.userid in item.notice.destination)
+                            .map(u => {
+                                return {
+                                    userid: u.userid,
+                                    username: u.username,
+                                    isConfirmed: !!item.notice.destination[u.userid]
+                                }
+                            })
+                    }
+                },
+            },
+            methods: {
+                // 初期化
+                async initialize() {
+                    // 通知の一覧を取得
+                    await this.fetchData()
+                },
+
+                // 通知データ取得
+                async fetchData() {
+                    // await Promise.all([
+                    //     // 直近の勤務表データは取得しておく（未取得の可能性があるので）
+                    //     store.dispatch('getWorkRecordAsync', {targetMonth: currentDate()}),
+                    //     // 通知取得
+                    //     store.dispatch('getNoticesAsync'),
+                    //     ...(getCookie("admin") == 1)
+                    //         ? [
+                    //             // ユーザ一覧取得（管理者のみ）
+                    //             store.dispatch('getUsersListAsync'),
+                    //             // 申請一覧データ取得（管理者のみ）
+                    //             store.dispatch('getRequestsAsync'),
+                    //         ]
+                    //         : []
+                    // ])
+                },
+
+                // 確認
+                async confirmNotice(item, isApproved) {
+                    let userid = getCookie("userid")
+                    let token = getCookie("token")
+
+                    switch (item.notice_type) {
+                        case STATUS.requested.key:
+                            // 申請の承認/却下
+                            try {
+                                let res = await kintaiApi.approve(userid, token, item, isApproved)
+        
+                                store.commit("updateNoticeConfirmResult", res.notice_of_request)
+        
+                                store.commit('snackbar', {
+                                    message: (isApproved ? "承認" : "却下") + 'しました',
+                                    color: "success"
+                                })
+                            } catch (error) {
+                                console.log(error)
+                                console.log(error.stack)
+                                store.commit('alertbox', {
+                                    message: error.stack || error.message,
+                                    type: "error"
+                                })
+                            }
+                            break
+                    
+                        case STATUS.approved.key:
+                        case STATUS.rejected.key:
+                        case STATUS.notice.key:
+                            // 通知を確認済みにする（申請の承認/却下通知、管理者通知）
+                            try {
+                                let res = await kintaiApi.confirmNotice(userid, token, item)
+        
+                                store.commit("updateNoticeConfirmResult", res.notice)
+                            } catch (error) {
+                                console.log(error)
+                                console.log(error.stack)
+                                store.commit('alertbox', {
+                                    message: error.stack || error.message,
+                                    type: "error"
+                                })
+                            }
+                            break
+                    
+                        default:
+                            break
+                    }
+                },
+            },
+        })
+    </script>
+    
+    <!-- コンポーネント：ユーザ情報画面 -->
+    <template id="user-view">
+        <v-card>
+            <v-card-title>
+                <span class="headline">ユーザ情報</span>
+            </v-card-title>
+            <v-card-text>
+                <v-container>
+                    <v-row class="my-3">
+                        <v-list subheader three-line>
+                            <v-list-item>
+                                <v-list-item-content>
+                                    <v-list-item-subtitle>氏名</v-list-item-subtitle>
+                                    <v-list-item-title>{{ !user ? "" : user.username }}</v-list-item-title>
+                                </v-list-item-content>
+                            </v-list-item>
+                            <v-list-item>
+                                <v-list-item-content>
+                                    <v-list-item-subtitle>勤務区分</v-list-item-subtitle>
+                                    <v-list-item-title>{{ !user ? "" : user.work_type }}</v-list-item-title>
+                                </v-list-item-content>
+                            </v-list-item>
+                            <v-list-item>
+                                <v-list-item-content>
+                                    <v-list-item-subtitle>年休日数</v-list-item-subtitle>
+                                    <v-list-item-title>{{ !user ? "" : user.holidays }}</v-list-item-title>
+                                </v-list-item-content>
+                            </v-list-item>
+                        </v-list>
+                    </v-row>
+                </v-container>
+            </v-card-text>
+        </v-card>
+    </template>
+    <script>
+        Vue.component('user-view', {
+            template: "#user-view",
+            data() {
+                return {
+                }
+            },
+            created() {
+                this.initialize()
+            },
+            computed: {
+                user: () => {
+                    return store.state.user_info
+                },
+            },
+            methods: {
+                // 初期化
+                async initialize() {
+                    // ユーザ情報を取得
+                    await this.fetchData()
+                },
+
+                // ユーザ情報取得
+                async fetchData() {
+                    // 通知取得
+                    // await store.dispatch('getUserAsync')
+                },
+            },
+        })
+    </script>
+
+    <!-- コンポーネント：アプリケーション画面 -->
+    <template id="app-view">
+        <v-app>
+            <snackbar></snackbar>
+            <loading></loading>
+            <confirm-dialog></confirm-dialog>
+            <div>
+                <!-- アプリケーションバー -->
+                <!-- https://vuetifyjs.com/ja/components/app-bars/#dense -->
+                <v-app-bar app color="indigo lighten-1" dense dark>
+                    <!-- <v-app-bar-nav-icon></v-app-bar-nav-icon> -->
+
+                    <v-toolbar-title>勤怠管理</v-toolbar-title>
+
+                    <v-spacer></v-spacer>
+
+                    <!-- メニューボタン -->
+                    <v-btn v-if="!isLoggedin" text to="/login">
+                        ログイン
+                    </v-btn>
+                    <v-btn v-if="isLoggedin" text @click='logout' to="/login">
+                        ログアウト
+                    </v-btn>
+                </v-app-bar>
+
+                <!-- メインコンテンツ -->
+                <v-main>
+                    <v-container fluid>
+                        <alertbox></alertbox>
+
+                        <!-- router-view の中身がパスによって切り替わる -->
+                        <router-view></router-view>
+                    </v-container>
+                </v-main>
+
+                <v-bottom-navigation app v-model="value" color="primary" :input-value="isLoggedin">
+                    <v-btn value="stamp" to="/stamp">
+                        <span>打刻</span>
+                        <v-icon>alarm</v-icon>
+                    </v-btn>
+
+                    <v-btn value="records" to="/records">
+                        <span>勤務表</span>
+                        <v-icon>calendar_today</v-icon>
+                    </v-btn>
+
+                    <v-btn value="notice" to="/notice">
+                        <span>通知</span>
+                        <v-badge color="pink" overlap :content="numberOfNotice" :value="numberOfNotice > 0">
+                            <v-icon class="material-icons-outlined">notifications_active</v-icon>
+                        </v-badge>
+                    </v-btn>
+
+                    <v-btn value="requested" to="/requested">
+                        <span>申請</span>
+                        <v-badge color="pink" overlap :content="numberOfRequest" :value="numberOfRequest > 0">
+                            <v-icon>schedule_send</v-icon>
+                        </v-badge>
+                    </v-btn>
+
+                    <v-btn value="user" to="/user">
+                        <span>ユーザ</span>
+                        <v-icon class="material-icons-outlined">account_circle</v-icon>
+                    </v-btn>
+                </v-bottom-navigation>
+            </div>
+        </v-app>
+    </template>
+    <script>
+        Vue.component('app-view', {
+            template: "#app-view",
+            data() {
+                return {
+                    value: currentPath(),
+                }
+            },
+            computed: {
+                isLoggedin: () => store.state.isLoggedin,
+                isAdmin: () => getCookie("admin") == 1,
+                numberOfNotice: () => store.getters.noticesOfAll.filter(n => !n.confirm_date).length,
+                numberOfNotice() {
+                    return store.getters.noticesOfAll
+                        .filter(n => {
+                            if (n.notice_type != STATUS.notice.key) {
+                                return !n.confirm_date
+                            } else {
+                                // 宛先全てに確認日が入っているか
+                                return !Object.values(n.notice.destination).every(d => d)
+                            }
+
+                        })
+                        .length
+                },
+                numberOfRequest: () => store.getters.noticesOfRequest(true).length,
+            },
+            methods: {
+                logout: () => removeCookie(["token", "userid", "admin"])
+            },
+        })
+    </script>
+
+    <!-- アプリケーション画面 -->
+    <div id="app"></div>
+
+    <!-- API関連の設定 -->
+    <script>
+        // axios作成
+        const api = axios.create({
+            baseURL: BASE_URL,
+            headers: {
+                'content-type': 'application/x-www-form-urlencoded'
+            },
+            transformResponse: (json) => {
+                return JSON.parse(
+                    json,
+                    (k, v) => (typeof(v) == "string" && /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(\.\d{3,})*Z*$/.test(v))
+                        ? new Date(v)
+                        : v
+                )
+            },
+        })
+
+        // request時
+        api.interceptors.request.use(request => {
+            store.commit('alertVisible', false)
+            // if (/^(xxx)$/.test(request.data.cmd)) {
+            //     store.commit('loadingFullScreen', true)
+            // }
+            store.commit('loadingIcon', true)
+            return request
+        })
+
+        // response時
+        api.interceptors.response.use(
+            res => {
+                store.commit('loadingFullScreen', false)
+                store.commit('loadingIcon', false)
+                if (res.data.result) {
+                    return res.data
+                } else {
+                    if (res.data.message == "invalid token.") {
+                        // トークン不正はcookie消す
+                        removeCookie(["token", "userid", "admin"])
+                        res.data.message = 'ログインしてやり直してください。'
+                    } else {
+                        res.data.message = res.data.message || 'エラーが発生しました。管理者に連絡してください。'
+                    }
+                    return Promise.reject(res.data)
+                }
+            },
+            err => {
+                store.commit('loadingFullScreen', false)
+                store.commit('loadingIcon', false)
+                return Promise.reject(err)
+            })
+
+        const kintaiApi = {
+            // ログイン
+            login: (userid, password) => {
+                if (!TEST_MODE) {
+                    return api.post('', {
+                        cmd: "login",
+                        userid: userid,
+                        password: password,
+                    })
+                } else {
+                    // テスト用
+
+                }
+            },
+            // パスワードを忘れた
+            forgotPassword: (userid) => {
+                if (!TEST_MODE) {
+                    return api.post('', {
+                        cmd: "forgot_password",
+                        userid: userid,
+                    })
+                } else {
+                    // テスト用
+
+                }
+            },
+            // パスワード再設定
+            changePassword: (userid, password, token) => {
+                if (!TEST_MODE) {
+                    return api.post('', {
+                        cmd: "change_password",
+                        userid: userid,
+                        password: password,
+                        token: token,
+                    })
+                } else {
+                    // テスト用
+
+                }
+            },
+            // ユーザ情報取得
+            getUser: (userid, token) => {
+                if (!TEST_MODE) {
+                    return api.post('', {
+                        cmd: "get_user",
+                        userid: userid,
+                        token: token,
+                    })
+                } else {
+                    // テスト用
+                    return new Promise(resolve => setTimeout(() => {
+                        resolve({
+                            user_info: {
+                                username: "白鳥　浩史",
+                                work_type: "HSE0850",
+                                holidays: 99,
+                                admin: "1",
+                            }
+                        })
+                    }, 1000))
+                }
+            },
+            // ユーザ一覧取得
+            getUsersList: (userid, token) => {
+                if (!TEST_MODE) {
+                    return api.post('', {
+                        cmd: "get_users_list",
+                        userid: userid,
+                        token: token,
+                    })
+                } else {
+                    // テスト用
+                    return new Promise(resolve => setTimeout(() => {
+                        resolve({
+                            users_list: [
+                                {userid: "h.shirotori", username: "白鳥　浩史", work_type: "", holidays: 99, admin: "1"},
+                                {userid: "test1", username: "テスト　１", work_type: "", holidays: 99, admin: "1"},
+                                {userid: "test2", username: "テスト　２", work_type: "", holidays: 99, admin: "1"},
+                                {userid: "test3", username: "テスト　３", work_type: "", holidays: 99, admin: "1"},
+                                {userid: "test4", username: "テスト　４", work_type: "", holidays: 99, admin: "1"},
+                                {userid: "test5", username: "テスト　５", work_type: "", holidays: 99, admin: "1"},
+                                {userid: "test6", username: "テスト　６", work_type: "", holidays: 99, admin: "1"},
+                                {userid: "test7", username: "テスト　７", work_type: "", holidays: 99, admin: "1"},
+                                {userid: "test8", username: "テスト　８", work_type: "", holidays: 99, admin: "1"},
+                                {userid: "test9", username: "テスト　９", work_type: "", holidays: 99, admin: "1"},
+                            ]
+                        })
+                    }, 1000))
+                    
+                }
+            },
+            // 打刻
+            stamp: (cmd, userid, token, location) => {
+                if (!TEST_MODE) {
+                    return api.post('', {
+                        cmd: cmd,
+                        userid: userid,
+                        token: token,
+                        location: location,
+                    })
+                } else {
+                    // テスト用
+
+                }
+            },
+            // 勤務表取得
+            getRecords: (userid, token, fromDate, toDate) => {
+                if (!TEST_MODE) {
+                    return api.post('', {
+                        cmd: "get_workrecords",
+                        userid: userid,
+                        token: token,
+                        fromDate: fromDate,
+                        toDate: toDate,
+                    })
+                } else {
+                    // テスト用
+                    return new Promise(resolve => setTimeout(() => {
+                        resolve({
+                            work_records: [
+                                {userid: "h.shirotori", date: new Date(2021, 2, 1), status: ["home","late","early","absence","holiday","compensation","exchange","special"], start_time: "08:50", start_location: {x:140,y:38,address:"宮城県仙台市青葉区１２３４５－６７８９０"}, end_time: "18:05", end_location: {x:140,y:38,address:"仙台市"}, start_time_adjust: "08:50", end_time_adjust: "18:05", break_time: null, active_time: "08:15", requests: []},
+                                {userid: "h.shirotori", date: new Date(2021, 2, 2), status: ["home"], start_time: "08:50", start_location: {}, end_time: "18:05", end_location: {}, start_time_adjust: "08:50", end_time_adjust: "18:05", break_time: null, active_time: "08:15", requests: [{target_date: new Date("2021/3/2"), request_type: "modify", start_time: "08:50", end_time: "17:20", note: "打刻忘れ", receipt_date: new Date("2021/3/2 11:22:33"), approved: true, approved_date: new Date("2021/3/5 15:16:17")}]},
+                                {userid: "h.shirotori", date: new Date(2021, 2, 3), status: ["home"], start_time: "08:50", start_location: {}, end_time: "18:05", end_location: {}, start_time_adjust: "08:50", end_time_adjust: "18:05", break_time: null, active_time: "08:15", requests: [{target_date: new Date("2021/3/3"), request_type: "holiday", start_time: null, end_time: null, note: "私用のため", receipt_date: new Date("2021/3/3 17:00:59"), approved: false, approved_date: new Date("2021/3/5 09:20:30")}]},
+                                {userid: "h.shirotori", date: new Date(2021, 2, 4), status: ["home"], start_time: "08:50", start_location: {}, end_time: "18:05", end_location: {}, start_time_adjust: "08:50", end_time_adjust: "18:05", break_time: null, active_time: "08:15", requests: []},
+                                {userid: "h.shirotori", date: new Date(2021, 2, 5), status: ["home"], start_time: "08:50", start_location: {}, end_time: "18:05", end_location: {}, start_time_adjust: "08:50", end_time_adjust: "18:05", break_time: null, active_time: "08:15", requests: []},
+                                {userid: "h.shirotori", date: new Date(2021, 3, 1), status: ["home"], start_time: "08:50", start_location: {}, end_time: "17:20", end_location: {}, start_time_adjust: "08:50", end_time_adjust: "17:20", break_time: null, active_time: "07:45", requests: []},
+                                {userid: "h.shirotori", date: new Date(2021, 3, 2), status: ["home"], start_time: "08:50", start_location: {}, end_time: "17:20", end_location: {}, start_time_adjust: "08:50", end_time_adjust: "17:20", break_time: null, active_time: "07:45", requests: []},
+                                {userid: "h.shirotori", date: new Date(2021, 3, 3), status: ["home"], start_time: "08:50", start_location: {}, end_time: "17:20", end_location: {}, start_time_adjust: "08:50", end_time_adjust: "17:20", break_time: null, active_time: "07:45", requests: []},
+                                {userid: "h.shirotori", date: new Date(2021, 3, 4), status: ["home"], start_time: "08:50", start_location: {}, end_time: "17:20", end_location: {}, start_time_adjust: "08:50", end_time_adjust: "17:20", break_time: null, active_time: "07:45", requests: []},
+                                {userid: "h.shirotori", date: new Date(2021, 3, 5), status: ["home"], start_time: "08:50", start_location: {}, end_time: "17:20", end_location: {}, start_time_adjust: "08:50", end_time_adjust: "17:20", break_time: null, active_time: "07:45", requests: []},
+                            ]
+                        })
+                    }, 1000))
+                }
+            },
+            // 申請
+            request: (userid, token, request) => {
+                if (!TEST_MODE) {
+                    return api.post('', {
+                        cmd: "request",
+                        userid: userid,
+                        token: token,
+                        request: request,
+                    })
+                } else {
+                    // テスト用
+
+                }
+            },
+            // 通知送信
+            sendNotice: (userid, token, notice) => {
+                if (!TEST_MODE) {
+                    return api.post('', {
+                        cmd: "send_notice",
+                        userid: userid,
+                        token: token,
+                        notice: notice,
+                    })
+                } else {
+                    // テスト用
+                    store.commit('loadingIcon', true)
+                    return new Promise(resolve => setTimeout(() => {
+                        store.commit('loadingIcon', false)
+                        resolve({result: true, notice: notice})
+                    }, 1000))
+                }
+            },
+            // 通知取得
+            getNotices: (userid, token) => {
+                if (!TEST_MODE) {
+                    return api.post('', {
+                        cmd: "get_notices",
+                        userid: userid,
+                        token: token,
+                    })
+                } else {
+                    // テスト用
+                    store.commit('loadingFullScreen', true)
+                    return new Promise(resolve => setTimeout(() => {
+                        store.commit('loadingFullScreen', false)
+                        resolve({
+                            notices: [
+                                {notice_date: new Date("2021/4/16 09:10:20"), title: "締め切り", note: "17までに提出願います。", destination: {"h.shirotori": null}},
+                            ]
+                        })
+                    }, 1000))
+                }
+            },
+            // 通知確認
+            confirmNotice: (userid, token, notice) => {
+                if (!TEST_MODE) {
+                    return api.post('', {
+                        cmd: "confirm_notice",
+                        userid: userid,
+                        token: token,
+                        notice: notice,
+                    })
+                } else {
+                    // テスト用
+                    store.commit('loadingIcon', true)
+                    return new Promise(resolve => setTimeout(() => {
+                        store.commit('loadingIcon', false)
+
+                        // リクエストを一旦JSONにして戻す。日付はDateにする。
+                        let res_notice = JSON.parse(
+                            JSON.stringify(notice),
+                            (k, v) => {
+                                if (typeof(v) == "string" && /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(\.\d{3,})*Z*$/.test(v)) {
+                                    return new Date(v)
+                                }
+                                return v
+                            }
+                        )
+
+                        switch (notice.notice_type) {
+                            case STATUS.requested.key:
+                                // 申請の承認/却下 → approveで更新
+                                break
+                        
+                            case STATUS.approved.key:
+                            case STATUS.rejected.key:
+                                // 申請の承認/却下通知を確認済みにする
+                                res_notice.request.confirm_date = new Date()
+
+                                // 勤務表レコードも入れとく
+                                let rec = Object.assign({}, store.state.workRecords.filter(r => r.date.getTime() == notice.target_date.getTime())[0])
+                                res_notice.work_record = rec
+                                break
+                        
+                            case STATUS.notice.key:
+                                // 管理者通知を確認済みにする
+                                res_notice.notice.destination[userid] = new Date()
+                                break
+                        
+                            default:
+                                break
+                        }
+
+                        resolve({
+                            notice: res_notice
+                        })
+                    }, 1000))
+                }
+            },
+            // 申請一覧取得（未承認分）
+            getRequests: (userid, token, unapproved) => {
+                if (!TEST_MODE) {
+                    return api.post('', {
+                        cmd: "get_requests",
+                        userid: userid,
+                        token: token,
+                        unapproved: unapproved,
+                    })
+                } else {
+                    // テスト用
+                    return new Promise(resolve => setTimeout(() => {
+                        resolve({
+                            requests: [
+                                {userid: "h.shirotori", date: new Date("2021/3/2"), receipt_date: new Date("2021/3/2 11:22:33"), request: {target_date: new Date("2021/3/2"), request_type: "modify", start_time: "08:50", end_time: "17:20", note: "打刻忘れ", receipt_date: new Date("2021/3/2 11:22:33"), approved: null, approved_date: null}},
+                                {userid: "h.shirotori", date: new Date("2021/3/3"), receipt_date: new Date("2021/3/3 17:00:59"), request: {target_date: new Date("2021/3/3"), request_type: "holiday", start_time: null, end_time: null, note: "私用のため", receipt_date: new Date("2021/3/3 17:00:59"), approved: false, approved_date: new Date("2021/3/3 18:10:20")}},
+                            ]
+                        })
+                    }, 1000))
+                }
+            },
+            // 承認/却下
+            approve: (userid, token, noticeOfRequest, isApproved) => {
+                if (!TEST_MODE) {
+                    return api.post('', {
+                        cmd: "approve",
+                        userid: userid,
+                        token: token,
+                        target_userid: noticeOfRequest.userid,
+                        notice_of_request: noticeOfRequest,
+                        is_approved: isApproved,
+                    })
+                } else {
+                    // テスト用
+                    store.commit('loadingIcon', true)
+                    return new Promise(resolve => setTimeout(() => {
+                        store.commit('loadingIcon', false)
+
+                        // リクエストを一旦JSONにして戻す。日付はDateにする。
+                        let res_notice_of_request = JSON.parse(
+                            JSON.stringify(noticeOfRequest),
+                            (k, v) => {
+                                if (typeof(v) == "string" && /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(\.\d{3,})*Z*$/.test(v)) {
+                                    return new Date(v)
+                                }
+                                return v
+                            }
+                        )
+
+                        switch (noticeOfRequest.notice_type) {
+                            case STATUS.requested.key:
+                                // 申請の承認/却下
+                                res_notice_of_request.request.approved = isApproved
+                                res_notice_of_request.request.approved_date = new Date()
+                                break
+                        
+                            case STATUS.approved.key:
+                            case STATUS.rejected.key:
+                                // 申請の承認/却下通知を確認済みにする → confirmNoticeで更新
+                                break
+                        
+                            case STATUS.notice.key:
+                                // 管理者通知を確認済みにする → confirmNoticeで更新
+                                break
+                        
+                            default:
+                                break
+                        }
+
+                        resolve({
+                            notice: res_notice_of_request
+                        })
+                    }, 1000))
+                }
+            },
+        }
+    </script>
+
+    <!-- Vue関連の設定 -->
+    <script>
+        // Vue Routerの生成
+        // https://router.vuejs.org/ja/guide/#html
+        const routes = [{
+                path: '/login',
+                name: 'login',
+                component: Vue.component('login-view')
+            },
+            {
+                path: '/forgotPassword',
+                name: 'forgotPassword',
+                component: Vue.component('forgot-password-view')
+            },
+            {
+                path: '/changePassword',
+                name: 'changePassword',
+                component: Vue.component('change-password-view')
+            },
+            {
+                path: '/stamp',
+                name: 'stamp',
+                component: Vue.component('stamp-view')
+            },
+            {
+                path: '/records',
+                name: 'records',
+                component: Vue.component('records-view')
+            },
+            {
+                path: '/notice',
+                name: 'notice',
+                component: Vue.component('notice-view')
+            },
+            {
+                path: '/requested',
+                name: 'requested',
+                component: Vue.component('requested-view')
+            },
+            {
+                path: '/user',
+                name: 'user',
+                component: Vue.component('user-view')
+            },
+        ]
+        const router = new VueRouter({
+            routes
+        })
+
+        // Vuexの生成
+        // https://vuex.vuejs.org/ja/guide/
+        const store = new Vuex.Store({
+            // 状態
+            state: {
+                // ログイン状態
+                isLoggedin: false,
+                // アラート
+                alertVisible: false,
+                alertMessage: null,
+                alertType: null,
+                // スナックバー
+                snackbarVisible: false,
+                snackbarMessage: null,
+                snackbarColor: null,
+                // ローディング
+                loadingFullScreen: false,
+                loadingIcon: false,
+                // ダイアログ
+                dialogVisible: false,
+                dialogTitle: null,
+                dialogText: null,
+                dialogLocationY: 0,
+                dialogLocationX: 0,
+                dialogCallback: null,
+                // ユーザ情報
+                user_info: null,
+                users_list: [],
+                // 勤務表データ
+                workRecords: [],
+                workRecordsFrom: beginOfMonth(nextMonth(new Date())),
+                // 通知データ
+                notices: null,
+                // 申請一覧データ
+                notices_request: [],
+            },
+            getters: {
+                // 通知データ（通知画面用）
+                noticesOfAll() {
+                    return [
+                        ...store.getters.noticesOfAdministrator,
+                        ...store.getters.noticesOfWorkRecord(STATUS.approved.key)
+                    ].sort((a, b) => (a.notice_date < b.notice_date) ? 1 : -1)
+                },
+
+                // 通知データ（管理者通知）
+                noticesOfAdministrator() {
+                    return (store.state.notices || [])
+                        .map(n => {
+                            return {
+                                // 通知表示用（共通）
+                                notice_type: STATUS.notice.key,
+                                notice_subtype: null,
+                                notice_date: n.notice_date,
+                                title: n.title,
+                                note: n.note,
+                                confirm_date: n.destination[getCookie("userid")],
+                                // 申請内容（固有）
+                                notice: n,
+                            }
+                        })
+                },
+
+                // 通知データ（勤務表画面用・承認/却下通知）
+                noticesOfWorkRecord() {
+                    return (extract_condition) => {
+                        return store.state.workRecords
+                            .flatMap(w => {
+                                return w.requests
+                                    // 承認待ち、または、承認/却下済み
+                                    .filter(r => {
+                                        switch (extract_condition) {
+                                            // 申請中
+                                            case STATUS.requested.key:
+                                                return !r.approved_date
+
+                                            // 承認/却下済み
+                                            case STATUS.approved.key:
+                                            case STATUS.rejected.key:
+                                                return !!r.approved_date
+
+                                            // 全件
+                                            default:
+                                                return true
+                                        }
+                                    })
+                                    // フォーマット変換
+                                    .map(r => {
+                                        let status = STATUS.array_all().filter(s => s.key == r.request_type)[0]
+                                        let notice_type = !r.approved_date
+                                            ? STATUS.requested.key
+                                            : (r.approved ? STATUS.approved.key : STATUS.rejected.key)
+                                        let title = !status.key ? "" : 
+                                            `${formatYYYYMMDD(w.date)} ${status.value}申請` +
+                                            (!r.approved_date ? "" : ((r.approved ? "が承認" : "が却下") + "されました"))
+                                        
+                                        return {
+                                            // 通知表示用（共通）
+                                            notice_type: notice_type,
+                                            notice_subtype: r.request_type,
+                                            notice_date: r.approved_date,
+                                            title: title,
+                                            note: r.note,
+                                            confirm_date: r.confirm_date,
+                                            // 申請内容（固有）
+                                            target_date: w.date,
+                                            request: r,
+                                        }
+                                    })
+                            })
+                    }
+                },
+
+                // 通知データ（申請一覧画面用）
+                noticesOfRequest() {
+                    return (unapproved) => {
+                        if (getCookie("admin") != 1) {
+                            // 管理者以外は自分の分のみ
+                            return store.getters.noticesOfWorkRecord(unapproved ? STATUS.requested.key : "")
+                        } else  {
+                            // 管理者は全員分
+                            return store.state.notices_request
+                                .filter(r => unapproved ? !r.request.approved_date : true)
+                                .map(r => {
+                                    let status = STATUS.array_all().filter(s => s.key == r.request.request_type)[0]
+                                    let notice_type = !r.request.approved_date
+                                        ? STATUS.requested.key
+                                        : (r.request.approved ? STATUS.approved.key : STATUS.rejected.key)
+                                    let title = !status ? "" : 
+                                        `${formatYYYYMMDD(r.date)} ${status.value}申請` +
+                                        (!r.request.approved_date ? "" : (r.request.approved ? "（承認）" : "（却下）")) +
+                                        `（${store.getters.getUsername(r.userid)}）`
+                                    
+                                    return {
+                                        // 通知表示用（共通）
+                                        notice_type: notice_type,
+                                        notice_subtype: r.request.request_type,
+                                        notice_date: r.request.receipt_date,
+                                        title: title,
+                                        note: r.request.note,
+                                        confirm_date: r.approved_date, // 申請一覧画面では承認・却下日が入れば確認済み
+                                        // 申請内容（固有）
+                                        userid: r.userid,
+                                        target_date: r.date,
+                                        request: r.request,
+                                    }
+                                })
+                        }
+                    }
+                },
+
+                getUsername() {
+                    return (userid) => store.state.users_list.filter(u => u.userid == userid).map(u => u.username)[0]
+                },
+            },
+            // ミューテーション（状態を変化させるもの）
+            mutations: {
+                // ログイン状態変更
+                isLoggedin: (state, isLoggedin) => {
+                    state.isLoggedin = isLoggedin
+                },
+                // アラート
+                alertbox: (state, payload) => {
+                    if (payload.message) {
+                        state.alertVisible = true
+                        state.alertMessage = payload.message
+                        state.alertType = payload.type || "info"
+                    } else {
+                        state.alertVisible = payload.visible || false
+                    }
+                },
+                // アラート表示/非表示変更
+                alertVisible: (state, visible) => {
+                    state.alertVisible = visible
+                },
+                // スナックバー
+                snackbar: (state, payload) => {
+                    if (payload.message) {
+                        state.snackbarVisible = true
+                        state.snackbarMessage = payload.message
+                        state.snackbarColor = payload.color || "success"
+                    } else {
+                        state.snackbarVisible = payload.visible || false
+                    }
+                },
+                // スナックバー表示/非表示変更
+                snackbarVisible: (state, visible) => {
+                    state.snackbarVisible = visible
+                },
+                // ローディング表示/非表示変更
+                loadingFullScreen: (state, visible) => {
+                    state.loadingFullScreen = visible
+                },
+                loadingIcon: (state, visible) => {
+                    state.loadingIcon = visible
+                },
+                // ダイアログ
+                dialog: (state, payload) => {
+                    if (payload.title || payload.text) {
+                        state.dialogVisible = true
+                        state.dialogTitle = payload.title
+                        state.dialogText = payload.text
+                        if (payload.location) {
+                            state.dialogLocationY = payload.location.y || 0
+                            state.dialogLocationX = payload.location.x || 0
+                        } else {
+                            state.dialogLocationY = 0
+                            state.dialogLocationX = 0
+                        }
+                        state.dialogCallback = payload.callback
+                    } else {
+                        state.dialogVisible = payload.visible || false
+                    }
+                },
+                // ダイアログ表示/非表示変更
+                dialogVisible: (state, visible) => {
+                    state.dialogVisible = visible
+                },
+                // ユーザ情報更新
+                updateUserInfo: (state, payload) => {
+                    state.user_info = payload.user_info
+                },
+                // ユーザ一覧更新
+                updateUsersList: (state, payload) => {
+                    state.users_list = payload.users_list
+                },
+                // 勤務表データ更新
+                updateWorkRecords: (state, payload) => {
+                    state.workRecordsFrom = new Date([state.workRecordsFrom, payload.workRecordsFrom].min())
+                    state.workRecords = [
+                        ...state.workRecords.filter(r => !payload.workRecords.some(p => p.date.getTime() == r.date.getTime())),
+                        ...payload.workRecords
+                    ]
+                },
+                // 勤務表レコードの内容変更
+                updateWorkRecordValues: (state, payload) => {
+                    let targetRecord = state.workRecords.filter(r => r.date.getTime() == payload.work_record.date.getTime())[0]
+                    Object.assign(targetRecord, payload.work_record)
+                },
+                // 通知データ更新
+                updateNotices: (state, payload) => {
+                    state.notices = payload.notices
+                },
+                // 通知データ追加
+                addNotice: (state, payload) => {
+                    state.notices.push(payload.notice)
+                },
+                // 申請一覧データ更新
+                updateRequests: (state, payload) => {
+                    state.notices_request = payload.requests
+                },
+                // 通知の確認結果変更
+                updateNoticeConfirmResult: (state, payload) => {
+                    switch (payload.notice_type) {
+                        case STATUS.requested.key:
+                            // 申請の承認/却下
+                            let targetNoticeOfRequest = state.notices_request.filter(
+                                r => r.userid == payload.userid && 
+                                r.date.getTime() == payload.request.target_date.getTime() &&
+                                r.receipt_date.getTime() == payload.request.receipt_date.getTime())[0]
+                            Object.assign(targetNoticeOfRequest.request, payload.request)
+                            break
+                    
+                        case STATUS.approved.key:
+                        case STATUS.rejected.key:
+                            // 申請の承認/却下通知を確認済みにする
+                            let targetRecord = state.workRecords.filter(r => r.date.getTime() == payload.work_record.date.getTime())[0]
+                            let targetRequest = targetRecord.requests.filter(r => 
+                                r.target_date.getTime() == payload.request.target_date.getTime() &&
+                                r.receipt_date.getTime() == payload.request.receipt_date.getTime())[0]
+                            Object.assign(targetRequest, payload.request)
+                            break
+                    
+                        case STATUS.notice.key:
+                            // 管理者通知を確認済みにする
+                            let targetNotice = state.notices.filter(n => n.notice_date.getTime() == payload.notice_date.getTime())[0]
+                            Object.assign(targetNotice, payload.notice)
+                            break
+                    
+                        default:
+                            break
+                    }
+                },
+            },
+            // アクション（ミューテーションをコミットする）
+            actions: {
+                // ダイアログ
+                dialogAsync: ({ commit }, payload) => {
+                    return new Promise((resolve, reject) => {
+                        payload.callback = result => resolve(result)
+                        commit('dialog', payload)
+                    })
+                },
+                // ログイン状態変更
+                async isLoggedinAsync (context, isLoggedin) {
+                    context.commit("isLoggedin", isLoggedin)
+
+                    // ログイン状態のとき必要なデータを取得する
+                    if (isLoggedin) {
+                        await Promise.all([
+                            // 直近の勤務表データ取得
+                            context.dispatch('getWorkRecordAsync', {targetMonth: currentDate()}),
+                            // 通知取得
+                            context.dispatch('getNoticesAsync'),
+                            // 通知取得
+                            context.dispatch('getUserAsync'),
+                            ...(getCookie("admin") == 1)
+                                ? [
+                                    // ユーザ一覧取得（管理者のみ）
+                                    context.dispatch('getUsersListAsync'),
+                                    // 申請一覧データ取得（管理者のみ）
+                                    context.dispatch('getRequestsAsync'),
+                                ]
+                                : []
+                        ])
+                    }
+                },
+                // ユーザ情報取得
+                async getUserAsync (context, payload) {
+                    if (!!context.state.user_info) {
+                        // データ取得済みの場合は何もしない
+                        return
+                    }
+
+                    let userid = getCookie("userid")
+                    let token = getCookie("token")
+                    try {
+                        let res = await kintaiApi.getUser(userid, token)
+                        context.commit("updateUserInfo", {user_info: res.user_info})
+                    } catch (error) {
+                        console.log(error)
+                        console.log(error.stack)
+                        context.commit('alertbox', {
+                            message: error.message,
+                            type: "error"
+                        })
+                    }
+                },
+                // ユーザ一覧取得
+                async getUsersListAsync (context, payload) {
+                    if (context.state.users_list.length > 0) {
+                        // データ取得済みの場合は何もしない
+                        return
+                    }
+
+                    let userid = getCookie("userid")
+                    let token = getCookie("token")
+                    try {
+                        let res = await kintaiApi.getUsersList(userid, token)
+                        context.commit("updateUsersList", {users_list: res.users_list})
+                    } catch (error) {
+                        console.log(error)
+                        console.log(error.stack)
+                        context.commit('alertbox', {
+                            message: error.message,
+                            type: "error"
+                        })
+                    }
+                },
+                // 勤務表データ取得
+                async getWorkRecordAsync (context, payload) {
+                    if (context.state.workRecordsFrom <= payload.targetMonth) {
+                        // データ取得済みの場合は何もしない
+                        return
+                    }
+
+                    // 指定月のデータがなければ過去3ヶ月分取得
+                    let from = beginOfMonth(lastMonth(payload.targetMonth, 2)) // 指定月の2ヶ月前月初から
+                    let to = endOfMonth(lastMonth(context.state.workRecordsFrom)) // 取得済み月の前月末まで
+
+                    let userid = getCookie("userid")
+                    let token = getCookie("token")
+                    try {
+                        let res = await kintaiApi.getRecords(userid, token, from, to)
+                        context.commit("updateWorkRecords", {workRecordsFrom: from, workRecords: res.work_records})
+                    } catch (error) {
+                        console.log(error)
+                        console.log(error.stack)
+                        context.commit('alertbox', {
+                            message: error.message,
+                            type: "error"
+                        })
+                    }
+                },
+                // 通知データ取得
+                async getNoticesAsync (context) {
+                    if (!!context.state.notices) {
+                        // データ取得済みの場合は何もしない
+                        return
+                    }
+
+                    let userid = getCookie("userid")
+                    let token = getCookie("token")
+                    try {
+                        let res = await kintaiApi.getNotices(userid, token)
+                        context.commit("updateNotices", {notices: res.notices})
+                    } catch (error) {
+                        console.log(error)
+                        console.log(error.stack)
+                        context.commit('alertbox', {
+                            message: error.message,
+                            type: "error"
+                        })
+                    }
+                },
+                // 申請一覧データ取得
+                async getRequestsAsync (context) {
+                    let userid = getCookie("userid")
+                    let token = getCookie("token")
+                    try {
+                        let res = await kintaiApi.getRequests(userid, token, false)
+                        context.commit("updateRequests", {requests: res.requests})
+                    } catch (error) {
+                        console.log(error)
+                        console.log(error.stack)
+                        context.commit('alertbox', {
+                            message: error.message,
+                            type: "error"
+                        })
+                    }
+                },
+            },
+        })
+        // Cookieにtokenがあればログイン済み
+        store.dispatch('isLoggedinAsync', !!getCookie("token"))
+
+        // mixins設定
+        Vue.mixin({
+            data: () => ({
+                // テンプレートからグローバルオブジェクトが参照できないのでmixinを経由する
+                STATUS: STATUS,
+            }),
+            methods: {
+                // // ZEROパディング
+                // zeroPad: function (num, length) {
+                //     return ("0".repeat(length) + num).slice(-length)
+                // },
+                // // 日付関連
+                // // 現在日付
+                // currentDate: function () {
+                //     return new Date()
+                // },
+                // // 月初
+                // beginOfMonth: function (date) {
+                //     return new Date(date.getFullYear(), date.getMonth(), 1)
+                // },
+                // // 月末
+                // endOfMonth: function (date) {
+                //     return new Date(date.getFullYear(), date.getMonth() + 1, 0)
+                // },
+                // // 前月
+                // lastMonth: function (date, num) {
+                //     return new Date(date.getFullYear(), date.getMonth() - (num || 1), 1)
+                // },
+                // // 翌月
+                // nextMonth: function (date, num) {
+                //     return new Date(date.getFullYear(), date.getMonth() + (num || 1), 1)
+                // },
+                // // 年月
+                // formatYYYYMM: function (date) {
+                //     return (date instanceof Date) ?
+                //         date.getFullYear() + "年" + (date.getMonth() + 1) + "月" :
+                //         date
+                // },
+                // // 年月日
+                // formatYYYYMMDD: function (date) {
+                //     return (date instanceof Date) ?
+                //         date.getFullYear() + "年" + (date.getMonth() + 1) + "月" + date.getDate() + "日" :
+                //         date
+                // },
+                // // 日
+                // formatDD: function (date) {
+                //     return (date instanceof Date) ?
+                //         date.getDate() :
+                //         date
+                // },
+                // // 曜日
+                // dayOfWeek: function (date) {
+                //     return ["日", "月", "火", "水", "木", "金", "土"][date.getDay()]
+                // },
+                // // 時分
+                // formatHHMM: function (date) {
+                //     return (date instanceof Date) ?
+                //         date.getHours() + ":" + this.zeroPad(date.getMinutes(), 2) :
+                //         date
+                // },
+            }
+        })
+
+        // アプリケーション生成（メイン処理）
+        new Vue({
+            router,
+            store,
+            vuetify: new Vuetify(),
+            render: h => h(Vue.component('app-view'))
+        }).$mount('#app')
+    </script>
+
+</body>
+
+</html>
