@@ -365,7 +365,7 @@
                     return store.state.dialogLocationX
                 },
                 url() {
-                    return `http://maps.google.co.jp/maps?q=${this.y},${this.x}&output=embed&t=m&z=16&hl=ja`
+                    return `https://maps.google.co.jp/maps?q=${this.y},${this.x}&output=embed&t=m&z=16&hl=ja`
                 },
             },
             methods: {
@@ -983,12 +983,12 @@
                 },
                 startLocationUrl() {
                     return this.requestItem.start_location.y
-                        ? `http://maps.google.co.jp/maps?q=${this.requestItem.start_location.y},${this.requestItem.start_location.x}&output=embed&t=m&z=16&hl=ja`
+                        ? `https://maps.google.co.jp/maps?q=${this.requestItem.start_location.y},${this.requestItem.start_location.x}&output=embed&t=m&z=16&hl=ja`
                         : null
                 },
                 endLocationUrl() {
                     return this.requestItem.end_location.y
-                        ? `http://maps.google.co.jp/maps?q=${this.requestItem.end_location.y},${this.requestItem.end_location.x}&output=embed&t=m&z=16&hl=ja`
+                        ? `https://maps.google.co.jp/maps?q=${this.requestItem.end_location.y},${this.requestItem.end_location.x}&output=embed&t=m&z=16&hl=ja`
                         : null
                 },
             },
