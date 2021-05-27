@@ -82,6 +82,14 @@
                 ("0" + this.getHours()).slice(-2) + ":" + ("0" + this.getMinutes()).slice(-2) + ":" + ("0" + this.getSeconds()).slice(-2) + "." + ("00" + this.getMilliseconds()).slice(-3)
         }
 
+        // css高さ調整用
+        const calcViewHeight = () => {
+            let vh = window.innerHeight / 100
+            document.documentElement.style.setProperty('--vh', `${vh}px`)
+        }
+        window.addEventListener('resize', calcViewHeight)
+        calcViewHeight()
+
         // 共通関数
         // 表示中のパス
         window.currentPath = () => location.hash.match(/[\/](.*)$/)[1]
@@ -317,11 +325,14 @@
                             <p v-html="dialogText"></p>
                         </v-row>
                         <v-row v-if="y>0">
+                            {{ address }}
+                        </v-row>
+                        <!-- <v-row v-if="y>0">
                             <v-col align-self="center" style="text-align: center;">
                                 <iframe :src="url" frameborder="0" scrolling="no" marginheight="0" marginwidth="0"
                                     width="200" height="200"></iframe>
                             </v-col>
-                        </v-row>
+                        </v-row> -->
                     </v-container>
                 </v-card-text>
                 <v-card-actions>
@@ -364,8 +375,13 @@
                 x() {
                     return store.state.dialogLocationX
                 },
+                async address() {
+                    let res = await kintaiApi.getAdress(getCookie("userid"), getCookie("token"), {y: this.y, x: this.x})
+                    return res.address
+                },
                 url() {
-                    return `https://maps.google.co.jp/maps?q=${this.y},${this.x}&output=embed&t=m&z=16&hl=ja`
+                    return `https://maps.google.com/maps/embed?q=${this.y},${this.x}&t=m&z=16&hl=ja`
+                    // return `https://www.google.com/maps/embed?pb=!1m18!1m12!1m3!1d10536.257295172189!2d140.8628542259351!3d38.26910581238518!2m3!1f0!2f0!3f0!3m2!1i1024!2i768!4f13.1!3m3!1m2!1s0x5f8a28180c510b87%3A0xb2a30b91be1ffdbc!2z5LuZ5Y-w6aeF!5e0!3m2!1sja!2sjp!4v1621983862444!5m2!1sja!2sjp`
                 },
             },
             methods: {
@@ -780,36 +796,59 @@
                                         </v-row>
 
                                         <v-row class="justify-center pt-0">
-                                            <v-col cols="3" class="py-0">
-                                                <v-text-field readonly type="time" v-model="requestItem.start_time" label="出勤"></v-text-field>
-                                            </v-col>
-                                            <v-col cols="3" class="py-0">
-                                                <v-text-field readonly type="time" v-model="requestItem.start_time_adjust" label="出勤(調整)"></v-text-field>
-                                            </v-col>
-                                            <v-col cols="6" class="py-0">
-                                                <p v-if="startLocationUrl">{{ requestItem.start_location.address }}</p>
-                                                <p v-else>位置情報はありません。</p>
-                                            </v-col>
-                                        </v-row>
-                                        <v-row class="justify-center pt-0">
-                                            <v-col cols="3" class="py-0">
-                                                <v-text-field readonly type="time" v-model="requestItem.end_time" label="退勤"></v-text-field>
-                                            </v-col>
-                                            <v-col cols="3" class="py-0">
-                                                <v-text-field readonly type="time" v-model="requestItem.end_time_adjust" label="退勤(調整)"></v-text-field>
-                                            </v-col>
-                                            <v-col cols="6" class="py-0">
-                                                <p v-if="endLocationUrl">{{ requestItem.end_location.address }}</p>
-                                                <p v-else>位置情報はありません。</p>
-                                            </v-col>
-                                        </v-row>
-                                        <v-row class="pt-0">
-                                            <v-col cols="3" class="py-0">
-                                                <v-text-field readonly type="time" v-model="requestItem.break_time" label="休憩"></v-text-field>
-                                            </v-col>
-                                            <v-col cols="3" class="py-0">
-                                                <v-text-field readonly type="time" v-model="requestItem.active_time" label="実働"></v-text-field>
-                                            </v-col>
+                                            <v-list subheader three-line>
+                                                <!-- TODO: テーブルに -->
+                                                <v-list-item>
+                                                    <v-list-item-content>
+                                                        <v-list-item-subtitle>出勤</v-list-item-subtitle>
+                                                        <v-list-item-title>{{ formatTimeCol(requestItem.start_time) }}</v-list-item-title>
+                                                    </v-list-item-content>
+                                                </v-list-item>
+                                                <v-list-item>
+                                                    <v-list-item-content>
+                                                        <v-list-item-subtitle>出勤(調整)</v-list-item-subtitle>
+                                                        <v-list-item-title>{{ formatTimeCol(requestItem.start_time_adjust) }}</v-list-item-title>
+                                                    </v-list-item-content>
+                                                </v-list-item>
+                                                <v-list-item>
+                                                    <v-list-item-content>
+                                                        <v-list-item-subtitle>位置情報</v-list-item-subtitle>
+                                                        <v-list-item-title v-if="startLocationUrl">{{ requestItem.start_location.address }}</v-list-item-title>
+                                                        <v-list-item-title v-else>位置情報はありません。</v-list-item-title>
+                                                    </v-list-item-content>
+                                                </v-list-item>
+                                                <v-list-item>
+                                                    <v-list-item-content>
+                                                        <v-list-item-subtitle>退勤</v-list-item-subtitle>
+                                                        <v-list-item-title>{{ formatTimeCol(requestItem.end_time) }}</v-list-item-title>
+                                                    </v-list-item-content>
+                                                </v-list-item>
+                                                <v-list-item>
+                                                    <v-list-item-content>
+                                                        <v-list-item-subtitle>退勤(調整)</v-list-item-subtitle>
+                                                        <v-list-item-title>{{ formatTimeCol(requestItem.end_time_adjust) }}</v-list-item-title>
+                                                    </v-list-item-content>
+                                                </v-list-item>
+                                                <v-list-item>
+                                                    <v-list-item-content>
+                                                        <v-list-item-subtitle>位置情報</v-list-item-subtitle>
+                                                        <v-list-item-title v-if="endLocationUrl">{{ requestItem.end_location.address }}</v-list-item-title>
+                                                        <v-list-item-title v-else>位置情報はありません。</v-list-item-title>
+                                                    </v-list-item-content>
+                                                </v-list-item>
+                                                <v-list-item>
+                                                    <v-list-item-content>
+                                                        <v-list-item-subtitle>休憩</v-list-item-subtitle>
+                                                        <v-list-item-title>{{ formatTimeCol(requestItem.break_time) }}</v-list-item-title>
+                                                    </v-list-item-content>
+                                                </v-list-item>
+                                                <v-list-item>
+                                                    <v-list-item-content>
+                                                        <v-list-item-subtitle>実働</v-list-item-subtitle>
+                                                        <v-list-item-title>{{ formatTimeCol(requestItem.active_time) }}</v-list-item-title>
+                                                    </v-list-item-content>
+                                                </v-list-item>
+                                            </v-list>
                                         </v-row>
                                     </v-container>
                                 </v-card-text>
@@ -865,7 +904,7 @@
         </div>
     </template>
     <style>
-        #records-table .v-data-table__wrapper { height: calc(100vh - 235px); }
+        #records-table .v-data-table__wrapper { height: calc(var(--vh) * 100 - 235px); }
     </style>
     <script>
         Vue.component('records-view', {
@@ -1880,6 +1919,22 @@
                         })
                     }, 1000))
                     
+                }
+            },
+            // 住所取得
+            getAdress: (userid, token, location) => {
+                if (!TEST_MODE) {
+                    return api.post('', {
+                        cmd: "get_address",
+                        userid: userid,
+                        token: token,
+                        location: location,
+                    })
+                } else {
+                    // テスト用
+                    return new Promise(resolve => setTimeout(() => {
+                        resolve({address: "宮城県仙台市青葉区中央１丁目１０−１０"})
+                    }, 500))
                 }
             },
             // 打刻
