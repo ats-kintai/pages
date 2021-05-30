@@ -331,7 +331,7 @@
                         <v-row v-if="y>0">
                             <v-col align-self="center" style="text-align: center;">
                                 <iframe :src="url" frameborder="0" scrolling="no" marginheight="0" marginwidth="0"
-                                    width="200" height="200"></iframe>
+                                    width="200" height="200" class="grey lighten-3"></iframe>
                             </v-col>
                         </v-row>
                     </v-container>
@@ -379,7 +379,7 @@
                     return store.state.dialogLocationX
                 },
                 url() {
-                    return `http://maps.google.co.jp/maps?q=${this.y},${this.x}&output=embed&t=m&z=16&hl=ja`
+                    return `https://maps.google.co.jp/maps?q=${this.y},${this.x}&output=embed&t=m&z=16&hl=ja`
                 },
             },
             watch: {
@@ -1017,12 +1017,12 @@
                 },
                 startLocationUrl() {
                     return this.requestItem.start_location.y
-                        ? `http://maps.google.co.jp/maps?q=${this.requestItem.start_location.y},${this.requestItem.start_location.x}&output=embed&t=m&z=16&hl=ja`
+                        ? `https://maps.google.co.jp/maps?q=${this.requestItem.start_location.y},${this.requestItem.start_location.x}&output=embed&t=m&z=16&hl=ja`
                         : null
                 },
                 endLocationUrl() {
                     return this.requestItem.end_location.y
-                        ? `http://maps.google.co.jp/maps?q=${this.requestItem.end_location.y},${this.requestItem.end_location.x}&output=embed&t=m&z=16&hl=ja`
+                        ? `https://maps.google.co.jp/maps?q=${this.requestItem.end_location.y},${this.requestItem.end_location.x}&output=embed&t=m&z=16&hl=ja`
                         : null
                 },
             },
