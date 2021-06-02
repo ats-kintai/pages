@@ -181,6 +181,11 @@
             array_status: function () { return Object.values(this).filter(v => typeof v != "function" && v.tag.some(t => t == "status")) },
             array_holiday: function () { return Object.values(this).filter(v => typeof v != "function" && v.tag.some(t => t == "holiday")) },
         }
+        const DIALOG_BUTTON = {
+            OK: 1,
+            CANCEL: 2,
+            CONFIRM: 4,
+        }
 
         // cookie操作
         let setCookie = cookies => {
@@ -338,11 +343,15 @@
                 </v-card-text>
                 <v-card-actions>
                     <v-spacer></v-spacer>
-                    <v-btn color="green darken-1" text @click="callback(false)">
+
+                    <v-btn v-if="dialogButton & DIALOG_BUTTON.CANCEL" color="green darken-1" text @click="callback(false)">
                         キャンセル
                     </v-btn>
-                    <v-btn color="green darken-1" text @click="callback(true)">
+                    <v-btn v-if="dialogButton & DIALOG_BUTTON.OK" color="green darken-1" text @click="callback(true)">
                         OK
+                    </v-btn>
+                    <v-btn v-if="dialogButton & DIALOG_BUTTON.CONFIRM" color="green darken-1" text @click="callback(true)">
+                        確認
                     </v-btn>
                 </v-card-actions>
             </v-card>
@@ -371,6 +380,9 @@
                 },
                 dialogText() {
                     return store.state.dialogText
+                },
+                dialogButton() {
+                    return store.state.dialogButton
                 },
                 y() {
                     return store.state.dialogLocationY
@@ -666,7 +678,7 @@
                 }
             },
             created() {
-                this.stampType = ((new Date()).getHours() >= 7) ? "stamp_start" : "stamp_end"
+                this.stampType = ((new Date()).getHours() >= 7 || (new Date()).getHours() <= 16) ? "stamp_start" : "stamp_end"
             },
             computed: {
                 loadingIcon: () => store.state.loadingIcon
@@ -699,16 +711,17 @@
                             let address
                             if (cmd == "stamp_start") {
                                 time = res.work_record.start_time
-                                address = (!location.y) ? '' : res.work_record.start_location.address
+                                address = (!location.y) ? '' : res.work_record.start_stamp.address
                             } else {
                                 time = res.work_record.end_time
-                                address = (!location.y) ? '' : res.work_record.end_location.address
+                                address = (!location.y) ? '' : res.work_record.end_stamp.address
                             }
 
                             // 結果ダイアログ
                             await store.dispatch('dialogAsync', {
                                 title: '打刻完了',
                                 text: `以下の内容で打刻しました。<br>${time}<br>${address}`,
+                                button: DIALOG_BUTTON.OK,
                             })
 
                             // 申請結果を勤務表に更新する
@@ -784,7 +797,7 @@
 
                                         <v-card-actions>
                                             <v-spacer></v-spacer>
-                                            <v-btn :loading="loadingIcon" :disabled="loadingIcon" color="primary" @click="request">
+                                            <v-btn :loading="loadingIcon" :disabled="loadingIcon || disableRequest" color="primary" @click="request">
                                                 申請
                                             </v-btn>
                                         </v-card-actions>
@@ -817,7 +830,7 @@
                                                         </tr>
                                                         <tr>
                                                             <td class="px-2">位置情報</td>
-                                                            <td v-if="startLocationUrl">{{ requestItem.start_location.address }}</td>
+                                                            <td v-if="startLocationUrl">{{ requestItem.start_stamp.address }}</td>
                                                             <td v-else>位置情報はありません。</td>
                                                         </tr>
                                                         <tr>
@@ -830,7 +843,7 @@
                                                         </tr>
                                                         <tr>
                                                             <td class="px-2">位置情報</td>
-                                                            <td v-if="startLocationUrl">{{ requestItem.end_location.address }}</td>
+                                                            <td v-if="endLocationUrl">{{ requestItem.end_stamp.address }}</td>
                                                             <td v-else>位置情報はありません。</td>
                                                         </tr>
                                                         <tr>
@@ -866,11 +879,11 @@
                         </td>
                         <td class="pa-0">
                             {{ formatTimeCol(item.start_time) }}
-                            <v-icon v-if="!!item.start_location.y" small class="mr-2">location_on</v-icon>
+                            <v-icon v-if="!!item.start_stamp.y" small class="mr-2">location_on</v-icon>
                             </td>
                         <td class="pa-0">
                             {{ formatTimeCol(item.end_time) }}
-                            <v-icon v-if="!!item.end_location.y" small class="mr-2">location_on</v-icon>
+                            <v-icon v-if="!!item.end_stamp.y" small class="mr-2">location_on</v-icon>
                             </td>
                         <td class="pa-0">
                             {{ formatTimeCol(item.active_time) }}
@@ -946,9 +959,9 @@
                     date: null,
                     status: [],
                     start_time: null,
-                    start_location: {},
+                    start_stamp: {},
                     end_time: null,
-                    end_location: {},
+                    end_stamp: {},
                     start_time_adjust: null,
                     end_time_adjust: null,
                     start_time_mod: null,
@@ -965,6 +978,10 @@
 
             computed: {
                 loadingIcon: () => store.state.loadingIcon,
+                disableRequest() {
+                    console.log(beginOfMonth(lastMonth(new Date())))
+                    return this.requestItem.date < beginOfMonth(lastMonth(new Date()))
+                },
                 tableTitle() {
                     return formatYYYYMM(this.targetMonth)
                 },
@@ -976,6 +993,9 @@
                 },
                 workRecordsFrom() {
                     return store.state.workRecordsFrom
+                },
+                workRecordsTo() {
+                    return store.state.workRecordsTo
                 },
                 targetRecords() {
                     let from = beginOfMonth(this.targetMonth)
@@ -1016,13 +1036,13 @@
                     return (time) => formatHHMM(time)
                 },
                 startLocationUrl() {
-                    return this.requestItem.start_location.y
-                        ? `https://maps.google.co.jp/maps?q=${this.requestItem.start_location.y},${this.requestItem.start_location.x}&output=embed&t=m&z=16&hl=ja`
+                    return this.requestItem.start_stamp.y
+                        ? `https://maps.google.co.jp/maps?q=${this.requestItem.start_stamp.y},${this.requestItem.start_stamp.x}&output=embed&t=m&z=16&hl=ja`
                         : null
                 },
                 endLocationUrl() {
-                    return this.requestItem.end_location.y
-                        ? `https://maps.google.co.jp/maps?q=${this.requestItem.end_location.y},${this.requestItem.end_location.x}&output=embed&t=m&z=16&hl=ja`
+                    return this.requestItem.end_stamp.y
+                        ? `https://maps.google.co.jp/maps?q=${this.requestItem.end_stamp.y},${this.requestItem.end_stamp.x}&output=embed&t=m&z=16&hl=ja`
                         : null
                 },
             },
@@ -1049,10 +1069,8 @@
 
                 // 翌月へ
                 async next() {
-                    let next = nextMonth(this.targetMonth)
-                    if (next <= currentDate()) {
-                        this.targetMonth = next
-                    }
+                    this.targetMonth = nextMonth(this.targetMonth)
+                    await this.fetchData(this.targetMonth)
                 },
 
                 // 勤務表データ取得
@@ -1402,13 +1420,13 @@
                             <v-list-item v-if="item.request.start_time">
                                 <v-list-item-content>
                                     <v-list-item-subtitle>出勤時間</v-list-item-subtitle>
-                                    <v-list-item-title>{{ item.request.start_time }}</v-list-item-title>
+                                    <v-list-item-title>{{ formatStartTime(item) }}</v-list-item-title>
                                 </v-list-item-content>
                             </v-list-item>
                             <v-list-item v-if="item.request.end_time">
                                 <v-list-item-content>
                                     <v-list-item-subtitle>退勤時間</v-list-item-subtitle>
-                                    <v-list-item-title>{{ item.request.end_time }}</v-list-item-title>
+                                    <v-list-item-title>{{ formatEndTime(item) }}</v-list-item-title>
                                 </v-list-item-content>
                             </v-list-item>
                             <v-list-item>
@@ -1486,6 +1504,22 @@
                 // 日付表示用フォーマッタ
                 formatDateTimeCol() {
                     return (date) => formatYYYYMMDDHHMM(date)
+                },
+                // 出勤時間表示用編集
+                formatStartTime() {
+                    return (item) => {
+                        return (!item.request.start_time_before || item.request.start_time_before == item.request.start_time)
+                            ? item.request.start_time
+                            : `${item.request.start_time_before} → ${item.request.start_time}`
+                    }
+                },
+                // 退勤時間表示用編集
+                formatEndTime() {
+                    return (item) => {
+                        return (!item.request.end_time_before || item.request.end_time_before == item.request.end_time)
+                            ? item.request.end_time
+                            : `${item.request.end_time_before} → ${item.request.end_time}`
+                    }
                 },
                 // 承認/却下済みかどうか
                 isApproved() {
@@ -1772,6 +1806,11 @@
 
     <!-- アプリケーション画面 -->
     <div id="app"></div>
+    <style>
+        .v-application{
+            font-family: "SF Pro JP","SF Pro Text","SF Pro Icons","Hiragino Kaku Gothic Pro","ヒラギノ角ゴ Pro W3","メイリオ",Meiryo,"ＭＳ Ｐゴシック","Helvetica Neue",Helvetica,Arial,sans-serif !important;
+        }
+    </style>
 
     <!-- API関連の設定 -->
     <script>
@@ -1953,24 +1992,24 @@
                         cmd: "get_workrecords",
                         userid: userid,
                         token: token,
-                        fromDate: fromDate,
-                        toDate: toDate,
+                        from_date: fromDate,
+                        to_date: toDate,
                     })
                 } else {
                     // テスト用
                     return new Promise(resolve => setTimeout(() => {
                         resolve({
                             work_records: [
-                                {userid: "h.shirotori", date: new Date(2021, 2, 1), status: ["home","late","early","absence","holiday","compensation","exchange","special"], start_time: "08:50", start_location: {x:140,y:38,address:"宮城県仙台市青葉区１２３４５－６７８９０"}, end_time: "18:05", end_location: {x:140,y:38,address:"仙台市"}, start_time_adjust: "08:50", end_time_adjust: "18:05", break_time: null, active_time: "08:15", requests: []},
-                                {userid: "h.shirotori", date: new Date(2021, 2, 2), status: ["home"], start_time: "08:50", start_location: {}, end_time: "18:05", end_location: {}, start_time_adjust: "08:50", end_time_adjust: "18:05", break_time: null, active_time: "08:15", requests: [{target_date: new Date("2021/3/2"), request_type: "modify", start_time: "08:50", end_time: "17:20", note: "打刻忘れ", receipt_date: new Date("2021/3/2 11:22:33"), approved: true, approved_date: new Date("2021/3/5 15:16:17")}]},
-                                {userid: "h.shirotori", date: new Date(2021, 2, 3), status: ["home"], start_time: "08:50", start_location: {}, end_time: "18:05", end_location: {}, start_time_adjust: "08:50", end_time_adjust: "18:05", break_time: null, active_time: "08:15", requests: [{target_date: new Date("2021/3/3"), request_type: "holiday", start_time: null, end_time: null, note: "私用のため", receipt_date: new Date("2021/3/3 17:00:59"), approved: false, approved_date: new Date("2021/3/5 09:20:30")}]},
-                                {userid: "h.shirotori", date: new Date(2021, 2, 4), status: ["home"], start_time: "08:50", start_location: {}, end_time: "18:05", end_location: {}, start_time_adjust: "08:50", end_time_adjust: "18:05", break_time: null, active_time: "08:15", requests: []},
-                                {userid: "h.shirotori", date: new Date(2021, 2, 5), status: ["home"], start_time: "08:50", start_location: {}, end_time: "18:05", end_location: {}, start_time_adjust: "08:50", end_time_adjust: "18:05", break_time: null, active_time: "08:15", requests: []},
-                                {userid: "h.shirotori", date: new Date(2021, 3, 1), status: ["home"], start_time: "08:50", start_location: {}, end_time: "17:20", end_location: {}, start_time_adjust: "08:50", end_time_adjust: "17:20", break_time: null, active_time: "07:45", requests: []},
-                                {userid: "h.shirotori", date: new Date(2021, 3, 2), status: ["home"], start_time: "08:50", start_location: {}, end_time: "17:20", end_location: {}, start_time_adjust: "08:50", end_time_adjust: "17:20", break_time: null, active_time: "07:45", requests: []},
-                                {userid: "h.shirotori", date: new Date(2021, 3, 3), status: ["home"], start_time: "08:50", start_location: {}, end_time: "17:20", end_location: {}, start_time_adjust: "08:50", end_time_adjust: "17:20", break_time: null, active_time: "07:45", requests: []},
-                                {userid: "h.shirotori", date: new Date(2021, 3, 4), status: ["home"], start_time: "08:50", start_location: {}, end_time: "17:20", end_location: {}, start_time_adjust: "08:50", end_time_adjust: "17:20", break_time: null, active_time: "07:45", requests: []},
-                                {userid: "h.shirotori", date: new Date(2021, 3, 5), status: ["home"], start_time: "08:50", start_location: {}, end_time: "17:20", end_location: {}, start_time_adjust: "08:50", end_time_adjust: "17:20", break_time: null, active_time: "07:45", requests: []},
+                                {userid: "h.shirotori", date: new Date(2021, 2, 1), status: ["home","late","early","absence","holiday","compensation","exchange","special"], start_time: "08:50", start_stamp: {x:140,y:38,address:"宮城県仙台市青葉区１２３４５－６７８９０"}, end_time: "18:05", end_stamp: {x:140,y:38,address:"仙台市"}, start_time_adjust: "08:50", end_time_adjust: "18:05", break_time: null, active_time: "08:15", requests: []},
+                                {userid: "h.shirotori", date: new Date(2021, 2, 2), status: ["home"], start_time: "08:50", start_stamp: {}, end_time: "18:05", end_stamp: {}, start_time_adjust: "08:50", end_time_adjust: "18:05", break_time: null, active_time: "08:15", requests: [{target_date: new Date("2021/3/2"), request_type: "modify", start_time: "08:50", end_time: "17:20", note: "打刻忘れ", receipt_date: new Date("2021/3/2 11:22:33"), approved: true, approved_date: new Date("2021/3/5 15:16:17")}]},
+                                {userid: "h.shirotori", date: new Date(2021, 2, 3), status: ["home"], start_time: "08:50", start_stamp: {}, end_time: "18:05", end_stamp: {}, start_time_adjust: "08:50", end_time_adjust: "18:05", break_time: null, active_time: "08:15", requests: [{target_date: new Date("2021/3/3"), request_type: "holiday", start_time: null, end_time: null, note: "私用のため", receipt_date: new Date("2021/3/3 17:00:59"), approved: false, approved_date: new Date("2021/3/5 09:20:30")}]},
+                                {userid: "h.shirotori", date: new Date(2021, 2, 4), status: ["home"], start_time: "08:50", start_stamp: {}, end_time: "18:05", end_stamp: {}, start_time_adjust: "08:50", end_time_adjust: "18:05", break_time: null, active_time: "08:15", requests: []},
+                                {userid: "h.shirotori", date: new Date(2021, 2, 5), status: ["home"], start_time: "08:50", start_stamp: {}, end_time: "18:05", end_stamp: {}, start_time_adjust: "08:50", end_time_adjust: "18:05", break_time: null, active_time: "08:15", requests: []},
+                                {userid: "h.shirotori", date: new Date(2021, 3, 1), status: ["home"], start_time: "08:50", start_stamp: {}, end_time: "17:20", end_stamp: {}, start_time_adjust: "08:50", end_time_adjust: "17:20", break_time: null, active_time: "07:45", requests: []},
+                                {userid: "h.shirotori", date: new Date(2021, 3, 2), status: ["home"], start_time: "08:50", start_stamp: {}, end_time: "17:20", end_stamp: {}, start_time_adjust: "08:50", end_time_adjust: "17:20", break_time: null, active_time: "07:45", requests: []},
+                                {userid: "h.shirotori", date: new Date(2021, 3, 3), status: ["home"], start_time: "08:50", start_stamp: {}, end_time: "17:20", end_stamp: {}, start_time_adjust: "08:50", end_time_adjust: "17:20", break_time: null, active_time: "07:45", requests: []},
+                                {userid: "h.shirotori", date: new Date(2021, 3, 4), status: ["home"], start_time: "08:50", start_stamp: {}, end_time: "17:20", end_stamp: {}, start_time_adjust: "08:50", end_time_adjust: "17:20", break_time: null, active_time: "07:45", requests: []},
+                                {userid: "h.shirotori", date: new Date(2021, 3, 5), status: ["home"], start_time: "08:50", start_stamp: {}, end_time: "17:20", end_stamp: {}, start_time_adjust: "08:50", end_time_adjust: "17:20", break_time: null, active_time: "07:45", requests: []},
                             ]
                         })
                     }, 1000))
@@ -2234,6 +2273,7 @@
                 dialogVisible: false,
                 dialogTitle: null,
                 dialogText: null,
+                dialogButton: 0,
                 dialogLocationY: 0,
                 dialogLocationX: 0,
                 dialogCallback: null,
@@ -2242,7 +2282,10 @@
                 users_list: [],
                 // 勤務表データ
                 workRecords: [],
+                // 勤務表データ取得範囲（開始） ※翌月で初期化
                 workRecordsFrom: beginOfMonth(nextMonth(new Date())),
+                // 勤務表データ取得範囲（終了） ※前月で初期化
+                workRecordsTo: beginOfMonth(lastMonth(new Date())),
                 // 通知データ
                 notices: null,
                 // 申請一覧データ
@@ -2414,6 +2457,7 @@
                         state.dialogVisible = true
                         state.dialogTitle = payload.title
                         state.dialogText = payload.text
+                        state.dialogButton = payload.button || (DIALOG_BUTTON.OK | DIALOG_BUTTON.CANCEL)
                         if (payload.location) {
                             state.dialogLocationY = payload.location.y || 0
                             state.dialogLocationX = payload.location.x || 0
@@ -2441,6 +2485,7 @@
                 // 勤務表データ更新
                 updateWorkRecords: (state, payload) => {
                     state.workRecordsFrom = new Date([state.workRecordsFrom, payload.workRecordsFrom].min())
+                    state.workRecordsTo = new Date([state.workRecordsTo, payload.workRecordsTo].max())
                     state.workRecords = [
                         ...state.workRecords.filter(r => !payload.workRecords.some(p => p.date.getTime() == r.date.getTime())),
                         ...payload.workRecords
@@ -2512,7 +2557,7 @@
                     // ログイン状態のとき必要なデータを取得する
                     if (isLoggedin) {
                         await Promise.all([
-                            // 直近の勤務表データ取得
+                            // 今月の勤務表データ取得
                             context.dispatch('getWorkRecordAsync', {targetMonth: currentDate()}),
                             // 通知取得
                             context.dispatch('getNoticesAsync'),
@@ -2573,20 +2618,20 @@
                 },
                 // 勤務表データ取得
                 async getWorkRecordAsync (context, payload) {
-                    if (context.state.workRecordsFrom <= payload.targetMonth) {
+                    if (context.state.workRecordsFrom <= payload.targetMonth && payload.targetMonth <= context.state.workRecordsTo) {
                         // データ取得済みの場合は何もしない
                         return
                     }
 
-                    // 指定月のデータがなければ過去3ヶ月分取得
-                    let from = beginOfMonth(lastMonth(payload.targetMonth, 2)) // 指定月の2ヶ月前月初から
-                    let to = endOfMonth(lastMonth(context.state.workRecordsFrom)) // 取得済み月の前月末まで
+                    // 指定月のデータがなければ取得
+                    let from = beginOfMonth(payload.targetMonth) // 月初から
+                    let to = endOfMonth(payload.targetMonth) // 月末まで
 
                     let userid = getCookie("userid")
                     let token = getCookie("token")
                     try {
                         let res = await kintaiApi.getRecords(userid, token, from, to)
-                        context.commit("updateWorkRecords", {workRecordsFrom: from, workRecords: res.work_records})
+                        context.commit("updateWorkRecords", {workRecordsFrom: from, workRecordsTo: to, workRecords: res.work_records})
                     } catch (error) {
                         console.log(error)
                         console.log(error.stack)
@@ -2643,6 +2688,7 @@
             data: () => ({
                 // テンプレートからグローバルオブジェクトが参照できないのでmixinを経由する
                 STATUS: STATUS,
+                DIALOG_BUTTON: DIALOG_BUTTON,
             }),
             methods: {
                 // // ZEROパディング
