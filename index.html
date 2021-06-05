@@ -1005,7 +1005,9 @@
                     })
                 },
                 activeDays() {
-                    return this.targetRecords.length
+                    return this.targetRecords
+                        .filter(item => !this.isCompanyHoliday(item))
+                        .length
                 },
                 activeTime() {
                     let minute = this.targetRecords
@@ -1021,11 +1023,16 @@
                 },
                 classDateCol() {
                     return (item) => {
+                        return (this.isCompanyHoliday(item))
+                            ? "text-caption pink--text"
+                            : "text-caption"
+                    }
+                },
+                isCompanyHoliday() {
+                    return (item) => {
                         let isWeekend = [0,6].includes(item.date.getDay())
                         let isHoliday = STATUS.array_holiday().some(h => item.status.some(s => s == h.key))
                         return (isWeekend || isHoliday)
-                            ? "text-caption pink--text"
-                            : "text-caption"
                     }
                 },
                 formatDayCol() {
